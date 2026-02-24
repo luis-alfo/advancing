@@ -1,41 +1,44 @@
-# Plan: Retrospectiva Excel → Airtable via Make
+# Plan: Retrospectiva Excel → Airtable (solo Airtable Automation)
 
-Workflow para migrar los datos historicos de la **Hoja Control (CF Cobros)** en Google Sheets hacia las tablas `rentas` y `cashflow` en Airtable, disparado desde un registro de `balance` en Airtable.
+Workflow para migrar los datos historicos de la **Hoja Control (CF Cobros)** hacia las tablas `rentas` y `cashflow` en Airtable, usando unicamente un script de Airtable Automation con `fetch()` a la Google Sheets API. **Sin Make. Sin Google Apps Script.**
 
 ---
 
 ## 1. Resumen del flujo
 
 ```
-┌─────────────────────────────────┐
-│  AIRTABLE - tabla balance       │
-│  Campo trigger: crearRetro ✓    │
-│  Envia: balanceRecordId,        │
-│         numOperacion             │
-└──────────────┬──────────────────┘
-               │ Webhook POST
-               ▼
-┌─────────────────────────────────┐
-│  MAKE - Escenario Retrospectiva │
-│                                 │
-│  1. Google Sheets: Search Row   │
-│     (CF Cobros, col A = numOp)  │
-│                                 │
-│  2. Google Apps Script: Parse   │
-│     Devuelve JSON array de      │
-│     {mes, importe, estado}      │
-│                                 │
-│  3. Iterator sobre meses        │
-│                                 │
-│  4. Router (filtro: tiene dato) │
-│     ├─ Crear Renta en Airtable  │
-│     └─ Crear Cashflow(s)        │
-│        ├─ Cashflow In (cobro)   │
-│        └─ Cashflow Out (pago)   │
-│                                 │
-│  5. Actualizar balance con log  │
-└─────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  AIRTABLE - tabla balance                        │
+│  Campo trigger: crearRetro ✓                     │
+│                                                  │
+│  Automation: "Run a script"                      │
+│  ┌────────────────────────────────────────────┐  │
+│  │  crearRetrospectiva.js                     │  │
+│  │                                            │  │
+│  │  1. Lee balance → linkDeal → numOperacion  │  │
+│  │                                            │  │
+│  │  2. fetch() → Google Sheets API v4         │  │
+│  │     • Fila 1 (headers con meses)           │  │
+│  │     • Col A (buscar numOp → nº de fila)    │  │
+│  │     • Fila N (datos: importe/estado)       │  │
+│  │                                            │  │
+│  │  3. Parsea los 77 pares Importe/Estado     │  │
+│  │                                            │  │
+│  │  4. createRecordsAsync() → rentas (batch)  │  │
+│  │                                            │  │
+│  │  5. createRecordsAsync() → cashflows In    │  │
+│  │     (batch, linked a rentas del paso 4)    │  │
+│  │                                            │  │
+│  │  6. Escribe log en avisoRetro              │  │
+│  └────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────┘
 ```
+
+**Ventajas vs Make + GAS:**
+- Una sola pieza: todo vive en Airtable (como los otros 3 scripts)
+- Sin coste de Make
+- Sin mantener un Google Apps Script aparte
+- Mismo patron que `actualizarPrecioRentas.js`, `cancelarRentasFuturas.js`, `cambiarSistemaPago.js`
 
 ---
 
@@ -46,497 +49,167 @@ Workflow para migrar los datos historicos de la **Hoja Control (CF Cobros)** en 
 | Columna | Campo | Ejemplo | Uso en retrospectiva |
 |---------|-------|---------|---------------------|
 | A | Nº De Operacion | `4468783216` | **Clave de busqueda** (= indexDeal en Airtable) |
-| B | Nº SEPA | `20369314` | Informativo |
-| D | DNI | `08877577Z` | No se usa |
-| E | Nombre deudor | `Antonio Rodriguez` | Verificacion |
-| F | Importe mes (nominal) | `1300` | Importe por defecto si celda vacia |
-| G | CONCEPTO | `Alquiler Calle X` | Verificacion |
-| H | Dia de cobro | `5 de mes` | Para calcular `calcFechaCobroInq` |
-| I | Mes inicio cobro | `Septiembre` | Primera renta |
-| J | Mes inicio cobro (num) | `9` | Primera renta |
-| K | Año inicio cobro | `2021` | Primera renta |
-| L | Score | `NO` / `SI` | No se usa |
-| M | Parte DAS (siniestro) | `NO` / num | Informativo |
+| E | Nombre deudor | `Antonio Rodriguez` | Verificacion (log) |
+| F | Importe mes (nominal) | `1300` | Fallback si celda de importe vacia |
 
-### Columnas mensuales (AJ - GG)
-
-Desde la columna **AJ (col 36)** hasta **GG**, hay **77 meses** en pares de 2 columnas:
+### Columnas mensuales (AJ - GG): 77 meses en pares
 
 ```
-Col AJ (36) = Importe Marzo 2021      Col AK (37) = Estado Marzo 2021
-Col AL (38) = Importe Abril 2021      Col AM (39) = Estado Abril 2021
-Col AN (40) = Importe Mayo 2021       Col AO (41) = Estado Mayo 2021
-...
-Hasta Julio 2027
+Fila 1 (headers):   AJ = 2021-03-01    AL = 2021-04-01    AN = 2021-05-01  ...  hasta 2027-07-01
+Fila 2 (sub):        Importe  Estado    Importe  Estado    Importe  Estado  ...
+Fila 3+ (datos):     813      c         1200     c         1200     c       ...
 ```
 
-**Rango temporal**: Marzo 2021 → Julio 2027
-
-### Patron por mes
-
-Cada mes tiene exactamente 2 columnas:
-- **Columna par** (AJ, AL, AN...): `Importe` (currency, ej: `1200.0`, `813.0`, `-`, vacio)
-- **Columna impar** (AK, AM, AO...): `Estado` (letra/codigo)
+Patron: columna par = Importe, columna impar = Estado.
 
 ---
 
 ## 3. Mapeo de Estados: Excel → Airtable
 
-### Cashflow In (statusIns)
-
-| Excel | Significado | Airtable statusIns | Airtable statusOut |
-|-------|-------------|-------------------|-------------------|
-| `C` o `c` | Cobrado | `Cobrado` | `Pagado` |
-| `C'` o `c'` | Cobrada con retraso | `Cobrada con retraso` | `Pagado` |
-| `P` o `p` | Pendiente | `Pendiente` | `Pendiente` |
-| `PP` o `pp` | Pago parcial | `Pago parcial` | `Pendiente` |
-| `D` | Devuelta | `Devuelta` | `Devuelto` |
-| `R` | Recuperada via arrendatario | `Recuperada vía arrendatario` | `Pagado` |
-| `R'` | Recuperada parcial via arrendatario | `Recuperada vía arrendatario` | `Pagado` |
-| `DAS` | Recuperada via DAS | `Recuperada vía DAS` | `Pagado` |
-| `PR` | Pendiente de recobro | `Pendiente` | `Pendiente` |
-| `I` | Impagado / Incidencia | `Devuelta` | `Pendiente` |
-| `-` | No aplica (sin renta ese mes) | **SKIP** — no crear registros | — |
-| vacio | Sin datos | **SKIP** — no crear registros | — |
-
-### Logica de estados derivados para Cashflow Out
-
-El cashflow Out (pago al propietario) se deriva del estado del cobro (In):
-- Si el cobro esta realizado (C, C', R, R', DAS) → Out = `Pagado`
-- Si el cobro esta pendiente o impagado (P, PP, D, PR, I) → Out = `Pendiente`
-- Si D (devuelta) → Out = `Devuelto`
+| Excel | Significado | Airtable `statusIns` | Airtable `statusOut` | Crear registro? |
+|-------|-------------|---------------------|---------------------|----------------|
+| `C` / `c` | Cobrado | Cobrado | Pagado | SI |
+| `C'` / `c'` | Cobrada con retraso | Cobrada con retraso | Pagado | SI |
+| `P` / `p` | Pendiente | Pendiente | Pendiente | SI |
+| `PP` / `pp` | Pago parcial | Pago parcial | Pendiente | SI |
+| `D` | Devuelta | Devuelta | Devuelto | SI |
+| `R` | Recuperada via arrendatario | Recuperada via arrendatario | Pagado | SI |
+| `R'` | Recuperada parcial | Recuperada via arrendatario | Pagado | SI |
+| `DAS` | Recuperada via DAS | Recuperada via DAS | Pagado | SI |
+| `PR` | Pendiente de recobro | Pendiente | Pendiente | SI |
+| `I` | Impagado / Incidencia | Devuelta | Pendiente | SI |
+| `-` | No aplica | — | — | **NO** |
+| vacio | Sin datos | — | — | **NO** |
 
 ---
 
-## 4. Logica de importes
+## 4. Registros a crear por cada mes valido
 
-### Renta
+### 4.1 Renta (tbl2izIaOR37sRHGg)
 
-```
-renta.importe = Importe de la celda del mes en CF Cobros
-```
+| Campo | Field ID | Valor |
+|-------|----------|-------|
+| fecha | fldSdtfW7UfIw8z4V | `YYYY-MM-01` del mes |
+| importe | fld2DbSB516n1bU8f | Importe del Excel (o fallback col F) |
+| tipo | fldTWeJAYDxWOZWPJ | `Alquiler` |
+| dealBalance | fldfh0vDzeqRuTFFE | `[balanceRecordId]` |
+| importeServicio | fldS4Zqn2KLOox9jG | `0` |
+| orden | fld5NwGSUP5onAOKd | Indice secuencial (1, 2, 3...) |
+| sistemaPago | fldKBseprTEyZysG8 | `Caixa` |
 
-Si la celda de importe esta vacia pero el estado es `P` o `C`:
-```
-renta.importe = columna F (Importe mes nominal)
-```
+### 4.2 Cashflow In (tblxY6upsLDmqzaaL)
 
-### Cashflow In (cobro al inquilino)
-
-```
-cashflowIn.importe = renta.importe + renta.importeServicio
-```
-
-> **Nota**: `importeServicio` se calcula por separado segun la estructura del deal (comision prorrateada). En la retrospectiva, como los datos vienen del Excel que ya refleja el importe total cobrado, se puede usar directamente el importe del Excel como importe del cashflow In, y dejar `importeServicio = 0` en la renta (o calcularlo a posteriori).
-
-**Alternativa simplificada** (recomendada para retrospectiva):
-```
-cashflowIn.importe = Importe de la celda del Excel (ya incluye servicio)
-renta.importe      = Importe de la celda del Excel
-```
-
-### Cashflow Out (pago al propietario)
-
-El importe que se paga al propietario se puede obtener de la hoja **"Transferencia Propietario"**:
-```
-cashflowOut.importe = Transferencia Propietario > col E (Importe mes)
-```
-
-O calcularlo como:
-```
-cashflowOut.importe = renta.importe - comisionAdvancing
-```
-
-> **Decision pendiente**: Confirmar si se crean cashflows Out en la retrospectiva o solo los In (cobros). Ver seccion 8.
+| Campo | Field ID | Valor |
+|-------|----------|-------|
+| direccion | fld656RBx2XkCHzR7 | `In` |
+| importe | fldbkCQZwDR8a9kRP | Importe del Excel |
+| fechaProgramada | fldrquziQqJoTn08B | `YYYY-MM-01` del mes |
+| statusIns | fldFyfq8PaqbCRgeN | Segun mapeo (seccion 3) |
+| linkRenta | fldsTJCCfItHDoCgS | `[rentaRecordId]` del paso anterior |
+| linkDealBalance | fldyCWFzrTMhWs7FT | `[balanceRecordId]` |
+| sistemaPago | fldjNItVaCzrhlNhf | `Caixa` |
+| razon | fld17mZxxLYPQfUzr | `Renta` |
+| sujeto | fldazRk0SXXdqQo9L | `Pagador alquiler` |
+| orden | fldc5yW3lEIo5OoE8 | Mismo indice que la renta |
+| metodoPago | fldn69DhRftezHhcZ | `SEPA` |
 
 ---
 
-## 5. Registros a crear por cada mes con datos
+## 5. Prerequisitos
 
-Por cada par (Importe, Estado) **que no sea vacio ni "-"**, crear:
+### 5.1 Google Sheets
 
-### 5.1 Registro en `rentas` (tbl2izIaOR37sRHGg)
+1. Subir el Excel "Hoja control - MES A MES.xlsx" a Google Drive
+2. Abrirlo como Google Sheet
+3. Compartir el documento como **"Cualquiera con el enlace puede ver"**
+4. Anotar el `SHEET_ID` de la URL: `https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit`
+5. Anotar el `GID` de la hoja "CF Cobros" (normalmente `0` si es la primera pestaña, si no se ve en la URL al seleccionarla)
 
-| Campo Airtable | Field ID | Valor |
-|----------------|----------|-------|
-| `fecha` | fldSdtfW7UfIw8z4V | Primer dia del mes (ej: `2021-03-01`) |
-| `importe` | fld2DbSB516n1bU8f | Importe del Excel |
-| `tipo` | fldTWeJAYDxWOZWPJ | `Alquiler` |
-| `dealBalance` | fldfh0vDzeqRuTFFE | `[balanceRecordId]` (del trigger) |
-| `importeServicio` | fldS4Zqn2KLOox9jG | `0` (o calcular si se tiene el dato) |
-| `orden` | fld5NwGSUP5onAOKd | Indice secuencial (1, 2, 3...) |
-| `sistemaPago` | fldKBseprTEyZysG8 | `Caixa` (historico) o `Unnax` (reciente) |
+### 5.2 Google Cloud (API Key)
 
-### 5.2 Registro en `cashflow` - direccion In (tblxY6upsLDmqzaaL)
+1. Ir a [Google Cloud Console](https://console.cloud.google.com)
+2. Crear proyecto (o usar existente)
+3. Habilitar "Google Sheets API"
+4. Crear una API Key (Credenciales > Crear credenciales > Clave de API)
+5. Restringir la key solo a "Google Sheets API" (recomendado)
 
-| Campo Airtable | Field ID | Valor |
-|----------------|----------|-------|
-| `direccion` | fld656RBx2XkCHzR7 | `In` |
-| `importe` | fldbkCQZwDR8a9kRP | Importe del Excel |
-| `fechaProgramada` | fldrquziQqJoTn08B | Primer dia del mes |
-| `statusIns` | fldFyfq8PaqbCRgeN | Segun mapeo de estados (seccion 3) |
-| `linkRenta` | fldsTJCCfItHDoCgS | `[rentaRecordId]` (del paso anterior) |
-| `linkDealBalance` | fldyCWFzrTMhWs7FT | `[balanceRecordId]` |
-| `sistemaPago` | fldjNItVaCzrhlNhf | `Caixa` o `Unnax` |
-| `razon` | fld17mZxxLYPQfUzr | `Renta` |
-| `sujeto` | fldazRk0SXXdqQo9L | `Pagador alquiler` |
-| `orden` | fldc5yW3lEIo5OoE8 | Mismo orden que la renta |
-| `metodoPago` | fldn69DhRftezHhcZ | `SEPA` |
+### 5.3 Airtable - Campos nuevos en tabla `balance`
 
-### 5.3 Registro en `cashflow` - direccion Out (opcional)
+| Campo | Tipo | Field ID (a crear) | Descripcion |
+|-------|------|---------------------|-------------|
+| `crearRetro` | Checkbox | — | Trigger de la automatizacion |
+| `avisoRetro` | Long text | — | Log de auditoria acumulativo |
 
-| Campo Airtable | Field ID | Valor |
-|----------------|----------|-------|
-| `direccion` | fld656RBx2XkCHzR7 | `Out` |
-| `importe` | fldbkCQZwDR8a9kRP | Importe pago propietario |
-| `fechaProgramada` | fldrquziQqJoTn08B | Primer dia del mes |
-| `statusOut` | fldIMh0gNEA3TuaiG | Derivado del estado In (ver seccion 3) |
-| `linkRenta` | fldsTJCCfItHDoCgS | `[rentaRecordId]` |
-| `linkDealBalance` | fldyCWFzrTMhWs7FT | `[balanceRecordId]` |
-| `sujeto` | fldazRk0SXXdqQo9L | `Propietario` |
-| `orden` | fldc5yW3lEIo5OoE8 | Mismo orden que la renta |
-| `metodoPago` | fldn69DhRftezHhcZ | `Transferencia` |
+### 5.4 Airtable - Automatizacion
+
+- **Trigger**: "When record matches conditions" en tabla `balance`
+- **Condicion**: `crearRetro` is checked
+- **Input variables**:
+  - `balanceRecordId`: Record ID del registro de balance
+- **Action**: "Run a script" → copiar `crearRetrospectiva.js`
 
 ---
 
-## 6. Diseno del escenario Make
+## 6. Limites y consideraciones
 
-### Prerequisitos
+### Timeout del script
 
-1. **Google Sheets**: Subir el Excel "Hoja control - MES A MES" a Google Drive (o vincular)
-2. **Google Apps Script**: Crear un web app para parsear la fila (ver seccion 7)
-3. **Airtable**: Crear campo `crearRetro` (checkbox) en tabla `balance`
-4. **Airtable**: Crear campo `avisoRetro` (long text) en tabla `balance`
+- Airtable Automations: **30 segundos** de timeout
+- Cada operacion tiene ~12-30 meses con datos → ~12-30 rentas + ~12-30 cashflows = ~24-60 registros
+- `createRecordsAsync` crea hasta 50 registros por llamada
+- **Estimacion**: 1 fetch + 1 batch rentas + 1 batch cashflows + 1 update balance = ~4 operaciones → **bien dentro del limite**
 
-### Modulos del escenario (orden secuencial)
+### Volumen total
 
-```
-[1] Webhooks: Custom webhook
-         │
-         │  Recibe: { balanceRecordId, numOperacion }
-         │
-         ▼
-[2] HTTP: Make a request
-         │
-         │  GET → Google Apps Script web app
-         │  Query: ?numOp={{numOperacion}}&sheetId={{SHEET_ID}}
-         │  Respuesta: JSON array de meses
-         │
-         ▼
-[3] JSON: Parse JSON
-         │
-         │  Parsea la respuesta del GAS
-         │  Array de { month, importe, estado }
-         │
-         ▼
-[4] Flow Control: Iterator
-         │
-         │  Itera sobre cada mes del array
-         │
-         ▼
-[5] Tools: Set variable
-         │
-         │  statusIn = mapeo(estado)
-         │  statusOut = derivado(statusIn)
-         │  skip = (estado vacio o "-")
-         │
-         ▼
-[6] Filter: Solo si skip = false
-         │
-         ▼
-[7] Airtable: Create a record (tabla rentas)
-         │
-         │  Crea la renta con fecha, importe, tipo, link a balance
-         │  Guarda: rentaRecordId
-         │
-         ▼
-[8] Airtable: Create a record (tabla cashflow - In)
-         │
-         │  Crea cashflow In con link a renta y balance
-         │
-         ▼
-[9] Airtable: Create a record (tabla cashflow - Out) [OPCIONAL]
-         │
-         │  Crea cashflow Out con link a renta y balance
-         │
-         ▼
-[10] Tools: Increment variable (orden++)
-         │
-         │  (vuelve al Iterator si quedan meses)
-         │
-         ▼
-[11] Airtable: Update a record (tabla balance)
-         │
-         │  Escribe log en avisoRetro
-         │  Limpia crearRetro = false
-```
+- ~3460 operaciones × ~25 meses promedio × 2 registros = **~173.000 registros**
+- Se procesan **una operacion a la vez** (trigger manual desde balance)
+- Para procesamiento masivo: activar `crearRetro` en multiples balances → Airtable las ejecuta en cola
 
-### Diagrama visual Make
+### Google Sheets API
 
-```
-┌──────────┐   ┌───────────┐   ┌──────────┐   ┌──────────┐
-│ Webhook  │──▶│ HTTP(GAS) │──▶│Parse JSON│──▶│ Iterator │
-└──────────┘   └───────────┘   └──────────┘   └────┬─────┘
-                                                    │
-                                         ┌──────────▼──────────┐
-                                         │  Set Variable       │
-                                         │  (mapeo estados)    │
-                                         └──────────┬──────────┘
-                                                    │
-                                              [Filter: hay dato]
-                                                    │
-                                         ┌──────────▼──────────┐
-                                         │  Airtable: Create   │
-                                         │  RENTA              │
-                                         └──────────┬──────────┘
-                                                    │
-                                    ┌───────────────┼───────────────┐
-                                    ▼                               ▼
-                          ┌─────────────────┐             ┌─────────────────┐
-                          │ Airtable: Create│             │ Airtable: Create│
-                          │ CASHFLOW IN     │             │ CASHFLOW OUT    │
-                          └─────────────────┘             └─────────────────┘
-```
+- Limite gratuito: 300 requests/minuto por proyecto
+- Cada ejecucion hace 2-3 requests (headers + buscar fila + leer datos)
+- No es un problema para ejecucion operacion-por-operacion
 
 ---
 
-## 7. Google Apps Script - Parser de fila
+## 7. Decisiones pendientes
 
-Este script se despliega como Web App y recibe el numero de operacion. Busca en CF Cobros, parsea los pares Importe/Estado y devuelve JSON limpio.
+### 7.1 Cashflows Out (pagos al propietario)
 
-```javascript
-function doGet(e) {
-  var numOp = e.parameter.numOp;
-  var sheetId = e.parameter.sheetId || 'TU_SHEET_ID';
+- **Opcion A (recomendada para v1)**: Solo crear cashflows In. Los Out se generan despues.
+- **Opcion B**: Crear In + Out. Requiere saber el importe del Out (desde hoja "Transferencia Propietario" o calculando).
 
-  var ss = SpreadsheetApp.openById(sheetId);
-  var ws = ss.getSheetByName('CF Cobros');
+### 7.2 Importe del servicio
 
-  // Fila 1: headers con fechas de meses (desde col AJ = col 36)
-  var headerRow = ws.getRange(1, 36, 1, 154).getValues()[0]; // 77 meses * 2 cols
+- **Opcion A (recomendada)**: `importeServicio = 0`. El importe del Excel ya es lo que se cobro.
+- **Opcion B**: Calcular a posteriori con otro script.
 
-  // Buscar fila por numOp en columna A
-  var colA = ws.getRange('A:A').getValues();
-  var targetRow = -1;
-  for (var i = 2; i < colA.length; i++) {
-    if (String(colA[i][0]).trim() === String(numOp).trim()) {
-      targetRow = i + 1; // 1-indexed
-      break;
-    }
-  }
+### 7.3 Rentas de tipo "Comision Advancing"
 
-  if (targetRow === -1) {
-    return ContentService.createTextOutput(
-      JSON.stringify({ error: 'Operacion no encontrada', numOp: numOp })
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // Leer metadatos de la fila
-  var metaRange = ws.getRange(targetRow, 1, 1, 35).getValues()[0];
-  var dataRange = ws.getRange(targetRow, 36, 1, 154).getValues()[0];
-
-  var result = {
-    numOperacion: String(metaRange[0]),
-    nombre: metaRange[4],
-    importeNominal: metaRange[5],
-    concepto: metaRange[6],
-    diaCobro: metaRange[7],
-    meses: []
-  };
-
-  // Parsear pares Importe/Estado
-  for (var j = 0; j < 154; j += 2) {
-    var monthDate = headerRow[j];
-    var importe = dataRange[j];
-    var estado = dataRange[j + 1];
-
-    if (!monthDate) continue;
-
-    // Formatear fecha como YYYY-MM
-    var monthStr;
-    if (monthDate instanceof Date) {
-      monthStr = Utilities.formatDate(monthDate, 'Europe/Madrid', 'yyyy-MM');
-    } else {
-      monthStr = String(monthDate);
-    }
-
-    // Normalizar estado
-    var estadoStr = estado ? String(estado).trim() : '';
-    var importeNum = null;
-
-    if (importe !== null && importe !== '' && importe !== '-') {
-      importeNum = Number(importe);
-    }
-
-    // Solo incluir meses con datos
-    if (estadoStr !== '' && estadoStr !== '-') {
-      result.meses.push({
-        month: monthStr,
-        monthDate: monthStr + '-01', // YYYY-MM-DD para Airtable
-        importe: importeNum,
-        estado: estadoStr.toUpperCase()
-      });
-    }
-  }
-
-  return ContentService.createTextOutput(
-    JSON.stringify(result)
-  ).setMimeType(ContentService.MimeType.JSON);
-}
-```
-
-### Ejemplo de respuesta JSON
-
-```json
-{
-  "numOperacion": "4468783216",
-  "nombre": "Antonio Rodriguez Cumplido",
-  "importeNominal": 1300,
-  "concepto": "Alquiler Calle Espalmador",
-  "diaCobro": "5 de mes",
-  "meses": [
-    { "month": "2021-03", "monthDate": "2021-03-01", "importe": 813, "estado": "C" },
-    { "month": "2021-04", "monthDate": "2021-04-01", "importe": 1200, "estado": "C" },
-    { "month": "2021-05", "monthDate": "2021-05-01", "importe": 1200, "estado": "C" },
-    { "month": "2021-09", "monthDate": "2021-09-01", "importe": 1300, "estado": "C" },
-    { "month": "2021-10", "monthDate": "2021-10-01", "importe": 1300, "estado": "C" },
-    { "month": "2021-11", "monthDate": "2021-11-01", "importe": null, "estado": "P" },
-    { "month": "2022-05", "monthDate": "2022-05-01", "importe": null, "estado": "P" }
-  ]
-}
-```
+- **Opcion A (recomendada para v1)**: Solo crear rentas tipo "Alquiler".
+- **Opcion B**: Tambien crear "Comision Advancing" (requiere datos adicionales).
 
 ---
 
-## 8. Decisiones pendientes
+## 8. Orden de implementacion
 
-Antes de implementar, confirmar:
-
-### 8.1 Cashflows Out (pagos al propietario)
-
-- **Opcion A**: Crear solo cashflows In (cobros). Los Out se crearan despues manualmente o con otro proceso.
-- **Opcion B**: Crear In + Out en la misma retrospectiva. Requiere determinar el importe del Out (desde hoja "Transferencia Propietario" o calculando `importe - comision`).
-
-### 8.2 Importe del servicio (comision Advancing)
-
-- **Opcion A**: Dejar `importeServicio = 0` en las rentas retrospectivas. El importe del Excel en CF Cobros ya refleja lo que se cobro al inquilino (incluye servicio).
-- **Opcion B**: Calcular `importeServicio` a partir de los datos del deal (`comisionProductoConIVA / meses`). Mas preciso pero requiere leer datos adicionales.
-
-### 8.3 Sistema de pago historico
-
-Los datos historicos son de CaixaBank (SEPA). Hay que decidir:
-- Marcar todas las rentas/cashflows retrospectivos como `sistemaPago = "Caixa"`
-- O dejar vacio y rellenar despues
-
-### 8.4 Rentas de tipo "Comision Advancing"
-
-La hoja CF Cobros solo tiene las rentas de alquiler (cobros al inquilino). Hay que decidir:
-- **Opcion A**: Solo crear rentas tipo "Alquiler" en la retrospectiva
-- **Opcion B**: Tambien crear rentas tipo "Comision Advancing" (requiere calcular importeServicio por mes)
-
-### 8.5 Balance: campo importe
-
-El campo `balance.importe` se usa como precio actual del alquiler. Hay que decidir:
-- Rellenarlo con el ultimo importe del Excel
-- O dejarlo como esta si el balance ya existe
-
-### 8.6 Volumen y limites de API
-
-- CF Cobros tiene **~3460 filas** (operaciones)
-- Cada operacion puede tener hasta **77 meses** de datos
-- Cada mes genera 2-3 registros (1 renta + 1-2 cashflows)
-- **Total estimado**: ~3460 × 30 meses promedio × 2 registros = **~207.600 registros**
-- Limite API Airtable: **5 requests/segundo**
-- **Tiempo estimado por operacion**: ~30 meses × 2 llamadas × 0.2s = ~12 segundos
-- **Recomendacion**: Procesar operacion por operacion (trigger manual desde balance), no en batch masivo
+1. Subir Excel a Google Sheets y compartir con enlace
+2. Crear API Key de Google Sheets
+3. Crear campos en Airtable (`crearRetro`, `avisoRetro`)
+4. Crear automatizacion con el script `crearRetrospectiva.js`
+5. **Test 1**: Probar con 1 operacion sencilla (solo estados C/P)
+6. **Test 2**: Probar con 1 operacion con impagos (D, PP, R, DAS)
+7. Validar en Airtable que rentas y cashflows cuadran con el Excel
+8. Ejecutar gradualmente (10, luego 50, luego el resto)
 
 ---
 
-## 9. Configuracion en Airtable
+## 9. Scripts relacionados
 
-### Campos nuevos a crear en tabla `balance` (tblYNdOLuMvpBavEu)
-
-| Campo | Tipo | Descripcion |
-|-------|------|-------------|
-| `crearRetro` | Checkbox | Trigger para lanzar la retrospectiva |
-| `avisoRetro` | Long text | Log de auditoria de la retrospectiva |
-| `webhookRetro` | URL / Button | URL del webhook de Make |
-
-### Automatizacion en Airtable
-
-- **Trigger**: "When record matches conditions" → `crearRetro` is checked
-- **Action 1**: Find records en tabla `deals` linked al balance → obtener `indexDeal` (numOperacion)
-- **Action 2**: Send webhook POST a Make con `{ balanceRecordId, numOperacion }`
-
----
-
-## 10. Mapeo completo de estados (referencia rapida)
-
-```
-Excel → Airtable cashflow.statusIns / cashflow.statusOut
-
-C/c    → Cobrado           / Pagado
-C'/c'  → Cobrada con retraso / Pagado
-P/p    → Pendiente         / Pendiente
-PP/pp  → Pago parcial      / Pendiente
-D      → Devuelta          / Devuelto
-R      → Recuperada via arrendatario / Pagado
-R'     → Recuperada via arrendatario / Pagado
-DAS    → Recuperada via DAS / Pagado
-PR     → Pendiente         / Pendiente
-I      → Devuelta          / Pendiente
-```
-
----
-
-## 11. Formulas Make para el modulo Set Variable
-
-```
-statusIn = switch(
-  upper(estado),
-  "C",   "Cobrado",
-  "C'",  "Cobrada con retraso",
-  "P",   "Pendiente",
-  "PP",  "Pago parcial",
-  "D",   "Devuelta",
-  "R",   "Recuperada vía arrendatario",
-  "R'",  "Recuperada vía arrendatario",
-  "DAS", "Recuperada vía DAS",
-  "PR",  "Pendiente",
-  "I",   "Devuelta"
-)
-
-statusOut = switch(
-  upper(estado),
-  "C",   "Pagado",
-  "C'",  "Pagado",
-  "P",   "Pendiente",
-  "PP",  "Pendiente",
-  "D",   "Devuelto",
-  "R",   "Pagado",
-  "R'",  "Pagado",
-  "DAS", "Pagado",
-  "PR",  "Pendiente",
-  "I",   "Pendiente"
-)
-
-importeFinal = if(
-  importe != null,
-  importe,
-  importeNominal
-)
-```
-
----
-
-## 12. Orden de implementacion sugerido
-
-1. Subir Excel a Google Sheets
-2. Crear y desplegar Google Apps Script (seccion 7)
-3. Probar GAS manualmente con un numOp conocido
-4. Crear campos en Airtable (`crearRetro`, `avisoRetro`)
-5. Crear escenario en Make (seccion 6)
-6. Probar con 1 operacion sencilla (solo cobrados, sin impagos)
-7. Probar con 1 operacion con impagos (D, PP, R, DAS)
-8. Validar que los registros en Airtable cuadran con el Excel
-9. Ejecutar gradualmente (10 operaciones, luego 50, luego el resto)
+| Script | Funcion |
+|--------|---------|
+| **`crearRetrospectiva.js`** | Crea rentas y cashflows historicos desde Google Sheets |
+| `actualizarPrecioRentas.js` | Cambia el importe de rentas futuras y sus cashflows |
+| `cancelarRentasFuturas.js` | Cancela rentas y cashflows futuros |
+| `cambiarSistemaPago.js` | Cambia el sistema de pago |
