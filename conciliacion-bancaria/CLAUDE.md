@@ -58,4 +58,7 @@ El boton "Pagar con tarjeta" actualmente muestra un placeholder. La integracion 
 2. Make genera el widget de Unnax y devuelve `clientWidgetURL`
 3. La pasarela carga el widget en un iframe dentro de `WidgetPlaceholder.jsx`
 
-El schema completo de Airtable esta en `airtable_schema_bancos.md`.
+### Airtable Schemas
+
+- `airtable_schema_bancos.md` - Schema de la base "Conciliacion bancaria"
+- `airtable_schema_operaciones.md` - Schema de la base "Gestor de Operaciones" (`appuV5kGKzKdXlhoR`, 26 tablas)
