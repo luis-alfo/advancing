@@ -49,9 +49,9 @@ const FIELD_LINK_MESES = 'fldFlp2wDVWljyTtC';             // linkMeses (rentas v
 const FIELD_BALANCE_IMPORTE = 'fldtJw4GfIzEtc7h2';        // importe
 const FIELD_CREAR_RETRO = 'crearRetro';                    // CREAR: checkbox
 const FIELD_AVISO_RETRO = 'avisoRetro';                    // CREAR: long text
+const FIELD_LINK_DEAL_ID_DEAL = 'linkDealIdDeal';          // lookup → deals.id_deal (numOperacion)
 
 // Deals
-const FIELD_DEAL_INDEX = 'fldJ77NBAlUHSyFmY';             // indexDeal (numOperacion)
 const FIELD_DEAL_COMISION_IVA = 'fldELB2u320ihPDo4';       // comisionProductoConIVA
 const FIELD_DEAL_COBRO_SERVICIO = 'fldxdjQwDUbL6sAyp';    // cobroServicio (modalidad)
 const FIELD_DEAL_PAGADOR_SERVICIO = 'fldDUjy7jrW8rYdDo';  // pagadorServicio
@@ -185,7 +185,7 @@ console.log(`=== RETROSPECTIVA: Procesando balance ${balanceRecordId} ===`);
 
 // --- STEP 1: Leer balance y deal ---
 const balanceRecord = await balanceTable.selectRecordAsync(balanceRecordId, {
-    fields: [FIELD_LINK_DEAL, FIELD_BALANCE_IMPORTE, FIELD_AVISO_RETRO, FIELD_LINK_MESES]
+    fields: [FIELD_LINK_DEAL, FIELD_BALANCE_IMPORTE, FIELD_AVISO_RETRO, FIELD_LINK_MESES, FIELD_LINK_DEAL_ID_DEAL]
 });
 
 if (!balanceRecord) {
@@ -200,6 +200,18 @@ if (rentasExistentes.length > 0) {
     return;
 }
 
+// numOperacion desde linkDealIdDeal (lookup → deals.id_deal)
+const linkDealIdDealValue = balanceRecord.getCellValue(FIELD_LINK_DEAL_ID_DEAL);
+// Lookup devuelve array de objetos o array de valores; extraemos el primero
+const numOperacion = Array.isArray(linkDealIdDealValue)
+    ? String(linkDealIdDealValue[0]?.value ?? linkDealIdDealValue[0] ?? '').trim()
+    : String(linkDealIdDealValue || '').trim();
+
+if (!numOperacion) {
+    throw new Error('linkDealIdDeal vacio — el deal no tiene id_deal');
+}
+
+// Leer deal para comision y modalidad de cobro
 const linkedDeals = balanceRecord.getCellValue(FIELD_LINK_DEAL);
 if (!linkedDeals || linkedDeals.length === 0) {
     throw new Error('Balance no tiene deal vinculado (linkDeal vacio)');
@@ -208,18 +220,12 @@ if (!linkedDeals || linkedDeals.length === 0) {
 const dealId = linkedDeals[0].id;
 const dealRecord = await dealsTable.selectRecordAsync(dealId, {
     fields: [
-        FIELD_DEAL_INDEX,
         FIELD_DEAL_COMISION_IVA,
         FIELD_DEAL_COBRO_SERVICIO,
         FIELD_DEAL_PAGADOR_SERVICIO,
     ]
 });
 
-const indexDealRaw = String(dealRecord.getCellValue(FIELD_DEAL_INDEX) || '').trim();
-// indexDeal tiene formato: "Casas Bcn - CL DOCTOR REIG 79 ... [36663988097]"
-// Extraemos el numero entre corchetes al final
-const bracketMatch = indexDealRaw.match(/\[(\d+)\]/);
-const numOperacion = bracketMatch ? bracketMatch[1] : indexDealRaw;
 const comisionTotal = dealRecord.getCellValue(FIELD_DEAL_COMISION_IVA) || 0;
 const cobroServicio = dealRecord.getCellValue(FIELD_DEAL_COBRO_SERVICIO);
 const cobroServicioName = cobroServicio ? cobroServicio.name : null;
@@ -227,13 +233,9 @@ const cobroServicioName = cobroServicio ? cobroServicio.name : null;
 const avisoExistente = balanceRecord.getCellValue(FIELD_AVISO_RETRO) || '';
 
 console.log(`Deal: ${dealId}`);
-console.log(`Num operacion: ${numOperacion}`);
+console.log(`Num operacion (id_deal): ${numOperacion}`);
 console.log(`Comision total (con IVA): €${comisionTotal}`);
 console.log(`Modalidad cobro servicio: ${cobroServicioName}`);
-
-if (!numOperacion) {
-    throw new Error('indexDeal (numOperacion) vacio en el deal');
-}
 
 // --- STEP 2: Leer datos de Google Sheets ---
 console.log('\nLeyendo Google Sheets...');
