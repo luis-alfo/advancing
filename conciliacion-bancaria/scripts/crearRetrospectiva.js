@@ -215,7 +215,11 @@ const dealRecord = await dealsTable.selectRecordAsync(dealId, {
     ]
 });
 
-const numOperacion = String(dealRecord.getCellValue(FIELD_DEAL_INDEX) || '').trim();
+const indexDealRaw = String(dealRecord.getCellValue(FIELD_DEAL_INDEX) || '').trim();
+// indexDeal tiene formato: "Casas Bcn - CL DOCTOR REIG 79 ... [36663988097]"
+// Extraemos el numero entre corchetes al final
+const bracketMatch = indexDealRaw.match(/\[(\d+)\]/);
+const numOperacion = bracketMatch ? bracketMatch[1] : indexDealRaw;
 const comisionTotal = dealRecord.getCellValue(FIELD_DEAL_COMISION_IVA) || 0;
 const cobroServicio = dealRecord.getCellValue(FIELD_DEAL_COBRO_SERVICIO);
 const cobroServicioName = cobroServicio ? cobroServicio.name : null;
