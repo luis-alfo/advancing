@@ -355,9 +355,11 @@ for (let i = 0; i < meses.length; i++) {
     const mes = meses[i];
 
     // importeServicio segun modalidad
+    // Nota: si es "Mensualmente", la comision va en rentas separadas de tipo
+    // "Comisión Advancing" (STEP 6), NO en las rentas de Alquiler.
     let importeServicio = 0;
     if (cobroServicioName === 'Mensualmente') {
-        importeServicio = importeServicioPorMes;
+        // importeServicio = 0 → la comision se gestiona en STEP 6
     } else if (i === 0 && comisionTotal > 0) {
         // Primera renta lleva toda la comision
         importeServicio = comisionTotal;
