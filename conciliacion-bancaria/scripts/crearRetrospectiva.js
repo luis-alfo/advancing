@@ -259,6 +259,7 @@ const dataRow = cfData[0] || [];
 const tpRow = await findRowByNumOp(SHEET_TRANSF_PROP, numOperacion);
 let importeProp = null; // importe que cobra el propietario
 let precioAdv = null;   // % comision Advancing
+let gestionCobros = false; // ¿Advancing gestiona el cobro SEPA?
 
 if (tpRow) {
     const tpData = await fetchSheetRange(SHEET_TRANSF_PROP, `${tpRow}:${tpRow}`);
@@ -266,7 +267,10 @@ if (tpRow) {
     // Col E (idx 4) = Importe mes, Col F (idx 5) = Precio Adv (%)
     importeProp = tpCols[4] != null ? Number(tpCols[4]) : null;
     precioAdv = tpCols[5] != null ? Number(tpCols[5]) : null;
-    console.log(`Transferencia Propietario fila ${tpRow}: importeProp=€${importeProp}, precioAdv=${precioAdv}`);
+    // Col AQ (idx 41) = GESTIÓN COBROS: "SI" o "Advancing" → Advancing gestiona
+    const gcRaw = tpCols[41] != null ? String(tpCols[41]).trim().toUpperCase() : '';
+    gestionCobros = gcRaw === 'SI' || gcRaw === 'ADVANCING';
+    console.log(`Transferencia Propietario fila ${tpRow}: importeProp=€${importeProp}, precioAdv=${precioAdv}, gestionCobros=${gestionCobros}`);
 } else {
     console.log(`Operacion ${numOperacion} NO encontrada en Transferencia Propietario`);
 }
@@ -430,6 +434,11 @@ for (let i = 0; i < cashflowInRecords.length; i += 50) {
 }
 
 // --- STEP 7: Crear cashflows Out (pago propietario) ---
+// Solo si Advancing gestiona el cobro (gestionCobros = true desde Excel)
+let cfOutCreated = 0;
+if (!gestionCobros) {
+    console.log('\nSin gestion de cobro — no se crean cashflows Out.');
+} else {
 console.log('\nCreando cashflows Out...');
 
 const cashflowOutRecords = [];
@@ -465,13 +474,13 @@ for (let i = 0; i < meses.length; i++) {
     });
 }
 
-let cfOutCreated = 0;
 for (let i = 0; i < cashflowOutRecords.length; i += 50) {
     const batch = cashflowOutRecords.slice(i, i + 50);
     await cashflowTable.createRecordsAsync(batch);
     cfOutCreated += batch.length;
     console.log(`Cashflows Out creados: ${cfOutCreated}/${cashflowOutRecords.length}`);
 }
+} // fin else gestionCobros
 
 // --- STEP 8: Escribir auditoria ---
 const ahora = new Date();
@@ -484,7 +493,7 @@ const min = String(ahora.getMinutes()).padStart(2, '0');
 const primerMes = meses[0]?.mesLabel || '?';
 const ultimoMes = meses[meses.length - 1]?.mesLabel || '?';
 
-const lineaAuditoria = `[${dd}/${mm}/${yyyy} ${hh}:${min}] RETROSPECTIVA op.${numOperacion} (${nombreDeudor}) — ${meses.length} meses (${primerMes} → ${ultimoMes}) | ${rentaIds.length} rentas Alquiler | ${cfInCreated} CF In + ${cfOutCreated} CF Out | Fila ${cfRow} en Sheets`;
+const lineaAuditoria = `[${dd}/${mm}/${yyyy} ${hh}:${min}] RETROSPECTIVA op.${numOperacion} (${nombreDeudor}) — ${meses.length} meses (${primerMes} → ${ultimoMes}) | ${rentaIds.length} rentas Alquiler | ${cfInCreated} CF In + ${cfOutCreated} CF Out | gestionCobros=${gestionCobros} | Fila ${cfRow} en Sheets`;
 
 const nuevoAviso = avisoExistente
     ? avisoExistente + '\n' + lineaAuditoria
