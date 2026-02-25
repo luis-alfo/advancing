@@ -17,7 +17,7 @@
 //   1. Lee balance → linkDeal → numOperacion (indexDeal)
 //   2. fetch() → Google Sheets API para leer fila del Excel
 //   3. Parsea pares Importe/Estado por mes
-//   4. Crea rentas tipo "Alquiler" + "Comisión Advancing" (batch)
+//   4. Crea rentas tipo "Alquiler" con importeServicio incluido (batch)
 //   5. Crea cashflows In (cobro inquilino) + Out (pago propietario) (batch)
 //   6. Escribe log en avisoRetro
 // ============================================================================
@@ -354,12 +354,10 @@ const rentaRecords = [];
 for (let i = 0; i < meses.length; i++) {
     const mes = meses[i];
 
-    // importeServicio segun modalidad
-    // Nota: si es "Mensualmente", la comision va en rentas separadas de tipo
-    // "Comisión Advancing" (STEP 6), NO en las rentas de Alquiler.
+    // importeServicio segun modalidad: siempre va dentro de la renta Alquiler
     let importeServicio = 0;
     if (cobroServicioName === 'Mensualmente') {
-        // importeServicio = 0 → la comision se gestiona en STEP 6
+        importeServicio = importeServicioPorMes;
     } else if (i === 0 && comisionTotal > 0) {
         // Primera renta lleva toda la comision
         importeServicio = comisionTotal;
@@ -397,35 +395,7 @@ for (let i = 0; i < rentaRecords.length; i += 50) {
     console.log(`Rentas creadas: ${rentaIds.length}/${rentaRecords.length}`);
 }
 
-// --- STEP 6: Crear rentas Comision Advancing (si cobro mensual) ---
-let rentaComisionIds = [];
-if (cobroServicioName === 'Mensualmente' && importeServicioPorMes > 0) {
-    console.log('\nCreando rentas Comision Advancing...');
-
-    const comisionRecords = [];
-    for (let i = 0; i < meses.length; i++) {
-        comisionRecords.push({
-            fields: {
-                [FIELD_RENTA_FECHA]: meses[i].fecha,
-                [FIELD_RENTA_IMPORTE]: 0, // Las rentas de comision no tienen importe propio
-                [FIELD_RENTA_TIPO]: { name: 'Comisión Advancing' },
-                [FIELD_RENTA_DEAL_BALANCE]: [{ id: balanceRecordId }],
-                [FIELD_RENTA_IMPORTE_SERVICIO]: importeServicioPorMes,
-                [FIELD_RENTA_ORDEN]: meses.length + i + 1,
-                [FIELD_RENTA_SISTEMA_PAGO]: { name: 'Caixa' },
-            }
-        });
-    }
-
-    for (let i = 0; i < comisionRecords.length; i += 50) {
-        const batch = comisionRecords.slice(i, i + 50);
-        const ids = await rentasTable.createRecordsAsync(batch);
-        rentaComisionIds.push(...ids);
-        console.log(`Rentas Comision creadas: ${rentaComisionIds.length}/${comisionRecords.length}`);
-    }
-}
-
-// --- STEP 7: Crear cashflows In (cobro inquilino) ---
+// --- STEP 6: Crear cashflows In (cobro inquilino) ---
 console.log('\nCreando cashflows In...');
 
 const cashflowInRecords = [];
@@ -459,7 +429,7 @@ for (let i = 0; i < cashflowInRecords.length; i += 50) {
     console.log(`Cashflows In creados: ${cfInCreated}/${cashflowInRecords.length}`);
 }
 
-// --- STEP 8: Crear cashflows Out (pago propietario) ---
+// --- STEP 7: Crear cashflows Out (pago propietario) ---
 console.log('\nCreando cashflows Out...');
 
 const cashflowOutRecords = [];
@@ -503,7 +473,7 @@ for (let i = 0; i < cashflowOutRecords.length; i += 50) {
     console.log(`Cashflows Out creados: ${cfOutCreated}/${cashflowOutRecords.length}`);
 }
 
-// --- STEP 9: Escribir auditoria ---
+// --- STEP 8: Escribir auditoria ---
 const ahora = new Date();
 const dd = String(ahora.getDate()).padStart(2, '0');
 const mm = String(ahora.getMonth() + 1).padStart(2, '0');
@@ -514,7 +484,7 @@ const min = String(ahora.getMinutes()).padStart(2, '0');
 const primerMes = meses[0]?.mesLabel || '?';
 const ultimoMes = meses[meses.length - 1]?.mesLabel || '?';
 
-const lineaAuditoria = `[${dd}/${mm}/${yyyy} ${hh}:${min}] RETROSPECTIVA op.${numOperacion} (${nombreDeudor}) — ${meses.length} meses (${primerMes} → ${ultimoMes}) | ${rentaIds.length} rentas Alquiler + ${rentaComisionIds.length} rentas Comision | ${cfInCreated} CF In + ${cfOutCreated} CF Out | Fila ${cfRow} en Sheets`;
+const lineaAuditoria = `[${dd}/${mm}/${yyyy} ${hh}:${min}] RETROSPECTIVA op.${numOperacion} (${nombreDeudor}) — ${meses.length} meses (${primerMes} → ${ultimoMes}) | ${rentaIds.length} rentas Alquiler | ${cfInCreated} CF In + ${cfOutCreated} CF Out | Fila ${cfRow} en Sheets`;
 
 const nuevoAviso = avisoExistente
     ? avisoExistente + '\n' + lineaAuditoria
@@ -533,7 +503,6 @@ console.log('RETROSPECTIVA COMPLETADA');
 console.log(`Operacion: ${numOperacion} (${nombreDeudor})`);
 console.log(`Meses procesados: ${meses.length} (${primerMes} → ${ultimoMes})`);
 console.log(`Rentas Alquiler creadas: ${rentaIds.length}`);
-console.log(`Rentas Comision creadas: ${rentaComisionIds.length}`);
 console.log(`Cashflows In creados: ${cfInCreated}`);
 console.log(`Cashflows Out creados: ${cfOutCreated}`);
 console.log(`Fila en Google Sheets: ${cfRow}`);
