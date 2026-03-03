@@ -55,6 +55,8 @@ const FIELD_LINK_DEAL_ID_DEAL = 'linkDealIdDeal';          // lookup → deals.i
 const FIELD_DEAL_COMISION_IVA = 'fldELB2u320ihPDo4';       // comisionProductoConIVA
 const FIELD_DEAL_COBRO_SERVICIO = 'fldxdjQwDUbL6sAyp';    // cobroServicio (modalidad)
 const FIELD_DEAL_PAGADOR_SERVICIO = 'fldDUjy7jrW8rYdDo';  // pagadorServicio
+const FIELD_DEAL_DIA_COBRO_INQ = 'fldXjiHD6pucRY8qj';     // día cobro inq
+const FIELD_DEAL_DIA_PAGO_PROP = 'fldX62V2qRvY0X7ni';     // día pago prop
 
 // Rentas
 const FIELD_RENTA_FECHA = 'fldSdtfW7UfIw8z4V';
@@ -91,7 +93,7 @@ function mapStatusIn(estado) {
         'PP':  'Pago parcial',
         'D':   'Devuelta',
         'R':   'Recuperada vía DAS',
-        "R'":  'Recuperada vía DAS',
+        "R'":  'Recuperada vía DAS y arrendatario',
         'DAS': 'Recuperada vía DAS',
         'PR':  'Pendiente',
         'I':   'Devuelta',
@@ -177,6 +179,17 @@ function serialToYYYYMM(serial) {
     return date ? date.slice(0, 7) : null;
 }
 
+// Cambiar el dia de una fecha YYYY-MM-DD, clampeando al ultimo dia del mes
+function setDay(dateStr, day) {
+    if (!dateStr || !day) return dateStr;
+    const d = parseInt(day, 10);
+    if (isNaN(d) || d < 1) return dateStr;
+    const [yyyy, mm] = dateStr.split('-');
+    const lastDay = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
+    const clampedDay = Math.min(d, lastDay);
+    return `${yyyy}-${mm}-${String(clampedDay).padStart(2, '0')}`;
+}
+
 // =====================================================================
 // MAIN SCRIPT
 // =====================================================================
@@ -223,12 +236,16 @@ const dealRecord = await dealsTable.selectRecordAsync(dealId, {
         FIELD_DEAL_COMISION_IVA,
         FIELD_DEAL_COBRO_SERVICIO,
         FIELD_DEAL_PAGADOR_SERVICIO,
+        FIELD_DEAL_DIA_COBRO_INQ,
+        FIELD_DEAL_DIA_PAGO_PROP,
     ]
 });
 
 const comisionTotal = dealRecord.getCellValue(FIELD_DEAL_COMISION_IVA) || 0;
 const cobroServicio = dealRecord.getCellValue(FIELD_DEAL_COBRO_SERVICIO);
 const cobroServicioName = cobroServicio ? cobroServicio.name : null;
+const diaCobroInq = dealRecord.getCellValue(FIELD_DEAL_DIA_COBRO_INQ) || 1;
+const diaPagoProp = dealRecord.getCellValue(FIELD_DEAL_DIA_PAGO_PROP) || 1;
 
 const avisoExistente = balanceRecord.getCellValue(FIELD_AVISO_RETRO) || '';
 
@@ -236,6 +253,7 @@ console.log(`Deal: ${dealId}`);
 console.log(`Num operacion (id_deal): ${numOperacion}`);
 console.log(`Comision total (con IVA): €${comisionTotal}`);
 console.log(`Modalidad cobro servicio: ${cobroServicioName}`);
+console.log(`Dia cobro inquilino: ${diaCobroInq} | Dia pago propietario: ${diaPagoProp}`);
 
 // --- STEP 2: Leer datos de Google Sheets ---
 console.log('\nLeyendo Google Sheets...');
@@ -412,7 +430,7 @@ for (let i = 0; i < meses.length; i++) {
         fields: {
             [FIELD_CF_DIRECCION]: { name: 'In' },
             [FIELD_CF_IMPORTE]: mes.importe,  // Lo que paga el inquilino (rent + servicio)
-            [FIELD_CF_FECHA_PROG]: mes.fecha,
+            [FIELD_CF_FECHA_PROG]: setDay(mes.fecha, diaCobroInq),
             [FIELD_CF_STATUS_INS]: { name: mes.statusIn },
             [FIELD_CF_LINK_RENTA]: [{ id: rentaId }],
             [FIELD_CF_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],
@@ -447,21 +465,20 @@ for (let i = 0; i < meses.length; i++) {
     const rentaId = rentaIds[i];
     if (!mes.statusOut) continue;
 
-    // Importe Out: lo que cobra el propietario
-    // Si tenemos importeProp de Transferencia Propietario, usamos ese
-    // Si no, usamos el importe de la renta (sin comision)
-    let importeOut = importeOutBase;
-    // Si el importe de la celda difiere del nominal (cambio de precio), ajustar proporcionalmente
+    // Importe Out: lo que cobra el propietario (siempre restando importeServicio)
+    let importeOut;
     if (importeNominal && importeNominal !== mes.importe && importeProp) {
-        // El importe cambio (ej. IPC): proporcionar el Out
+        // El importe cambio (ej. IPC): usar importe actual menos servicio
         importeOut = mes.importe - rentaRecords[i]._importeServicio;
+    } else {
+        importeOut = importeOutBase - rentaRecords[i]._importeServicio;
     }
 
     cashflowOutRecords.push({
         fields: {
             [FIELD_CF_DIRECCION]: { name: 'Out' },
             [FIELD_CF_IMPORTE]: importeOut,
-            [FIELD_CF_FECHA_PROG]: mes.fecha,
+            [FIELD_CF_FECHA_PROG]: setDay(mes.fecha, diaPagoProp),
             [FIELD_CF_STATUS_OUT]: { name: mes.statusOut },
             [FIELD_CF_LINK_RENTA]: [{ id: rentaId }],
             [FIELD_CF_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],

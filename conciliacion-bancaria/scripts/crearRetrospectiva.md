@@ -110,8 +110,8 @@ Balance (crearRetro = true)
 | P / p | Pendiente | Pendiente |
 | PP | Pago parcial | Pendiente |
 | D | Devuelta | Devuelto |
-| R | Recuperada via arrendatario | Pagado |
-| R' | Recuperada via arrendatario | Pagado |
+| R | Recuperada via DAS | Pagado |
+| R' | Recuperada via DAS y arrendatario | Pagado |
 | DAS | Recuperada via DAS | Pagado |
 | PR | Pendiente | Pendiente |
 | I | Devuelta | Pendiente |

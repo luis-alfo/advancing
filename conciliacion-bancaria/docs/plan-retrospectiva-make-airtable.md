@@ -73,8 +73,8 @@ Patron: columna par = Importe, columna impar = Estado.
 | `P` / `p` | Pendiente | Pendiente | Pendiente | SI |
 | `PP` / `pp` | Pago parcial | Pago parcial | Pendiente | SI |
 | `D` | Devuelta | Devuelta | Devuelto | SI |
-| `R` | Recuperada via arrendatario | Recuperada via arrendatario | Pagado | SI |
-| `R'` | Recuperada parcial | Recuperada via arrendatario | Pagado | SI |
+| `R` | Recuperada via DAS | Recuperada via DAS | Pagado | SI |
+| `R'` | Recuperada via DAS y arrendatario | Recuperada via DAS y arrendatario | Pagado | SI |
 | `DAS` | Recuperada via DAS | Recuperada via DAS | Pagado | SI |
 | `PR` | Pendiente de recobro | Pendiente | Pendiente | SI |
 | `I` | Impagado / Incidencia | Devuelta | Pendiente | SI |
