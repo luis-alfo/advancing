@@ -44,7 +44,7 @@ Cada dato tiene un **único owner** que es la fuente de verdad. La mayoría de d
 | **Identificadores** | `id_deal`, `recordID`, `indexDeal`, `canal de entrada`, `fechaFirmaSEPA` | Gestor | Gestor → Bancos | Solo al crear deal |
 | **Stop cobro inquilino** | `stopCobroInquilino` | Conciliación | Bancos → Gestor | Cuando se para la operativa en conciliación |
 | **Estado operativo** | `estadoBancario` (nuevo campo) | Conciliación | Bancos → Gestor | Resumen actualizado continuamente |
-| **Cambio de precio** | Script `actualizarPrecioRentas` | Conciliación | Solo en Bancos | No se sincroniza de vuelta |
+| **Cambio de precio** | `alquiler mensual` | Conciliación | Bancos → Gestor | Cuando se ejecuta `actualizarPrecioRentas` |
 | **Cambio sistema pago** | Script `cambiarSistemaPago` | Conciliación | Solo en Bancos | No se sincroniza de vuelta |
 
 ### Campos que NO se sincronizan de vuelta al Gestor
@@ -54,7 +54,6 @@ Cada dato tiene un **único owner** que es la fuente de verdad. La mayoría de d
 - `fechaCierre` — inmutable
 - `ComisionProductoConIVA` / comisiones — inmutables
 - `día cobro inq`, `día pago prop` — inmutables en Gestor
-- `alquiler mensual` — los cambios de precio solo viven en Bancos
 - `gestionCobroSelect` — los cambios de sistema de pago solo viven en Bancos
 - Datos de partes — inmutables durante la vida del deal
 
@@ -187,13 +186,15 @@ Este campo en el **Gestor** permite al equipo de gestión ver el estado de cada 
 | Campo Bancos | → Campo Gestor | Caso de uso |
 |--------------|----------------|-------------|
 | `stopCobroInquilino` | `stopCobroInquilino` | Cuando se para/reanuda la operativa de cobro |
+| `alquiler mensual` | `alquiler mensual` | Cuando se actualiza el precio en Bancos |
 | (calculado) | `estadoBancario` | Resumen del estado del deal en conciliación |
 
 ### 4.4 Operaciones solo en Bancos (sin sync de vuelta)
 Estos cambios ocurren en conciliación y **no necesitan reflejarse en el Gestor**:
-- **Cambio de precio** (`actualizarPrecioRentas.js`) — modifica rentas y cashflows futuros
 - **Cambio de sistema de pago** (`cambiarSistemaPago.js`) — modifica método de cobro/pago
 - **Cancelación de rentas futuras** (`cancelarRentasFuturas.js`) — ajusta balance
+
+> **Nota**: El **cambio de precio** (`actualizarPrecioRentas.js`) sí se sincroniza de vuelta: el nuevo `alquiler mensual` se envía al Gestor.
 
 ---
 

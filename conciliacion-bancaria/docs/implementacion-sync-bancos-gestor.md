@@ -104,7 +104,7 @@ IF(
 #### Trigger
 - **Tipo**: "When record matches conditions" o "When record is updated"
 - **Tabla**: `deals`
-- **Campos vigilados**: `stopCobroInquilino`, `estadoBancario` (la fórmula)
+- **Campos vigilados**: `stopCobroInquilino`, `estadoBancario` (fórmula), `alquiler mensual`
 - **Condición**: `recordID` is not empty (solo deals que están enlazados al Gestor)
 
 #### Action: Run Script
@@ -112,20 +112,22 @@ IF(
 ```javascript
 // ============================================================
 // Sync Bancos → Gestor
-// Automatización Airtable: cuando cambia stopCobroInquilino
-// o estadoBancario en deals de Bancos, actualiza el Gestor.
+// Automatización Airtable: cuando cambia stopCobroInquilino,
+// estadoBancario o alquiler mensual en deals de Bancos,
+// actualiza el Gestor vía API.
 // ============================================================
 
 // --- Configuración ---
 const GESTOR_BASE_ID = 'appuV5kGKzKdXlhoR';
 const GESTOR_TABLE_ID = 'tblwx73iceuKNaz68'; // tabla deal
-const GESTOR_PAT = 'TU_PERSONAL_ACCESS_TOKEN'; // TODO: reemplazar
+const GESTOR_PAT = 'TU_PERSONAL_ACCESS_TOKEN';
 
 // Field IDs en Gestor
 const GESTOR_FIELDS = {
-    stopCobroInquilino: 'fldWeJ1s7w64Taob4',
-    estadoBancario: 'FIELD_ID_AQUI', // TODO: reemplazar con el ID del nuevo campo
-    _syncSource: 'FIELD_ID_AQUI'     // TODO: reemplazar con el ID del nuevo campo
+    stopCobroInquilino: 'fldWeJ1s7w64Taob4',  // singleSelect
+    estadoBancario:     'fldDjs8jdDonwgh6W',   // singleSelect
+    alquilerMensual:    'fldTJIw17zLdUiXDH',   // currency
+    _syncSource:        'fldifPFuiOQMBEWif'    // singleLineText
 };
 
 // --- Input del trigger ---
@@ -136,15 +138,25 @@ let recordId = inputConfig.recordId;
 let dealsTable = base.getTable('deals');
 let record = await dealsTable.selectRecordAsync(recordId, {
     fields: [
-        'recordID',           // Record ID del deal en Gestor
+        'recordID',            // Record ID del deal en Gestor
         'stopCobroInquilino',
-        'estadoBancario',     // Fórmula calculada
-        'id_deal'             // Para logging
+        'estadoBancario',      // Fórmula calculada
+        'alquiler mensual',
+        'id_deal',             // Para logging
+        '_syncSource'
     ]
 });
 
 if (!record) {
     console.log('Record no encontrado');
+    return;
+}
+
+// Prevención de loops: si el cambio vino de sync, ignorar
+let syncSource = record.getCellValueAsString('_syncSource');
+if (syncSource === 'gestor-sync') {
+    console.log(`Deal ${record.getCellValueAsString('id_deal')}: cambio viene de sync, ignorando`);
+    await dealsTable.updateRecordAsync(record.id, { '_syncSource': '' });
     return;
 }
 
@@ -157,24 +169,31 @@ if (!gestorRecordId) {
 // --- Preparar payload para Gestor ---
 let stopCobro = record.getCellValue('stopCobroInquilino');
 let estadoBancario = record.getCellValueAsString('estadoBancario');
+let alquilerMensual = record.getCellValue('alquiler mensual');
 
 let fieldsToUpdate = {};
 
-// stopCobroInquilino: copiar el select value
+// stopCobroInquilino
 if (stopCobro) {
     fieldsToUpdate[GESTOR_FIELDS.stopCobroInquilino] = { name: stopCobro.name };
+} else {
+    fieldsToUpdate[GESTOR_FIELDS.stopCobroInquilino] = null;
 }
 
-// estadoBancario: copiar como select value
+// estadoBancario
 if (estadoBancario) {
     fieldsToUpdate[GESTOR_FIELDS.estadoBancario] = { name: estadoBancario };
+}
+
+// alquiler mensual
+if (alquilerMensual !== null && alquilerMensual !== undefined) {
+    fieldsToUpdate[GESTOR_FIELDS.alquilerMensual] = alquilerMensual;
 }
 
 // _syncSource: marcar que viene de Bancos
 fieldsToUpdate[GESTOR_FIELDS._syncSource] = 'bancos-sync';
 
 if (Object.keys(fieldsToUpdate).length <= 1) {
-    // Solo tiene _syncSource, nada que actualizar
     console.log(`Deal ${record.getCellValueAsString('id_deal')}: sin cambios que sincronizar`);
     return;
 }
@@ -188,20 +207,18 @@ let response = await fetch(url, {
         'Authorization': `Bearer ${GESTOR_PAT}`,
         'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-        fields: fieldsToUpdate
-    })
+    body: JSON.stringify({ fields: fieldsToUpdate })
 });
 
 if (response.ok) {
     let result = await response.json();
     console.log(`OK: Deal ${record.getCellValueAsString('id_deal')} → Gestor actualizado`);
     console.log(`  stopCobro: ${stopCobro?.name || '(vacío)'}`);
-    console.log(`  estadoBancario: ${estadoBancario || '(vacío)'}`);
+    console.log(`  estadoBancario: ${estadoBancario}`);
+    console.log(`  alquilerMensual: ${alquilerMensual ?? '(sin cambio)'}`);
 } else {
     let error = await response.text();
-    console.error(`ERROR: Deal ${record.getCellValueAsString('id_deal')} → ${response.status}`);
-    console.error(error);
+    console.error(`ERROR ${response.status}: ${error}`);
 }
 ```
 
