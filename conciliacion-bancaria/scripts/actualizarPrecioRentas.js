@@ -7,6 +7,7 @@
 //
 // INPUT VARIABLES (configurar en la automatización):
 //   - balanceRecordId: Record ID del registro de balance (del trigger)
+//   - gestorPAT: Personal Access Token con acceso a la base del Gestor
 //
 // FUNCIONAMIENTO:
 //   1. Lee nuevoPrecio, fechaNuevoPrecio, precio anterior y aviso existente del balance
@@ -15,6 +16,7 @@
 //      - In (cobros)  → nuevoPrecio + importeServicio de la renta
 //      - Out (pagos propietario) → nuevoPrecio (sin comisión)
 //   4. Escribe línea de auditoría en avisoNuevoPrecio (acumulativo)
+//   5. Sincroniza al Gestor: historicoCambiosPrecios + alquiler mensual
 //
 // NOTA: La comisión se gestiona mediante importeServicio en cada renta
 //       (puede estar prorrateada), NO con la comisión global del deal.
@@ -240,6 +242,52 @@ await balanceTable.updateRecordAsync(balanceRecordId, {
 });
 
 console.log(`Auditoría escrita: ${lineaAuditoria}`);
+
+// --- STEP 8: Sincronizar al Gestor (historicoCambiosPrecios + alquiler mensual) ---
+// Navegar balance → deal → recordID (del Gestor)
+const linkedDeal = balanceRecord.getCellValue('fldOnUYgysh29VHMe'); // linkDeal
+if (linkedDeal && linkedDeal.length > 0) {
+    const dealsTable = base.getTable('tblWnB9SCfCFoXzfW');
+    const dealRecord = await dealsTable.selectRecordAsync(linkedDeal[0].id, {
+        fields: ['recordID', 'id_deal']
+    });
+
+    const gestorRecordId = dealRecord?.getCellValueAsString('recordID');
+    if (gestorRecordId) {
+        const GESTOR_BASE_ID = 'appuV5kGKzKdXlhoR';
+        const GESTOR_TABLE_ID = 'tblwx73iceuKNaz68';
+        const GESTOR_PAT = input.config().gestorPAT || 'TU_PERSONAL_ACCESS_TOKEN';
+
+        const gestorFields = {
+            'fldvEH2HFKDEC6KsI': nuevoAviso,     // historicoCambiosPrecios
+            'fldTJIw17zLdUiXDH': nuevoPrecio,     // alquiler mensual
+            'fldifPFuiOQMBEWif': 'bancos-sync'    // _syncSource
+        };
+
+        const url = `https://api.airtable.com/v0/${GESTOR_BASE_ID}/${GESTOR_TABLE_ID}/${gestorRecordId}`;
+        const response = await fetch(url, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${GESTOR_PAT}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ fields: gestorFields })
+        });
+
+        if (response.ok) {
+            console.log(`Gestor actualizado: deal ${dealRecord.getCellValueAsString('id_deal')}`);
+            console.log(`  historicoCambiosPrecios: ${nuevoAviso.split('\n').length} líneas`);
+            console.log(`  alquiler mensual: €${nuevoPrecio}`);
+        } else {
+            const error = await response.text();
+            console.error(`ERROR al actualizar Gestor: ${response.status} — ${error}`);
+        }
+    } else {
+        console.log('Deal sin recordID de Gestor, sync omitido');
+    }
+} else {
+    console.log('Balance sin linkDeal, sync al Gestor omitido');
+}
 
 // --- Resumen ---
 console.log('========================================');

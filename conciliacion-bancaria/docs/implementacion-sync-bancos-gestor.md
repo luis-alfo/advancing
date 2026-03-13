@@ -16,10 +16,11 @@ Una sola automatización en la base de Bancos que detecta cambios y actualiza el
 
 ### En Gestor (tabla `deal`)
 
-| Campo | Tipo | Valores | Notas |
+| Campo | Tipo | Valores / Field ID | Notas |
 |-------|------|---------|-------|
-| `estadoBancario` | singleSelect | "Al corriente", "Cobro pendiente", "Pago pendiente", "Con incidencias", "Stop cobro" | Nuevo campo |
-| `_syncSource` | singleLineText | — | Prevención de loops (para futuro) |
+| `estadoBancario` | singleSelect | `fldDjs8jdDonwgh6W` — "Al corriente", "Cobro pendiente", "Pago pendiente", "Con incidencias", "Stop cobro" | Editable desde Bancos |
+| `historicoCambiosPrecios` | multilineText | `fldvEH2HFKDEC6KsI` | Histórico de cambios de precio (viene de `avisoNuevoPrecio` del balance) |
+| `_syncSource` | singleLineText | `fldifPFuiOQMBEWif` | Prevención de loops |
 
 > `stopCobroInquilino` ya existe en Gestor (`fldWeJ1s7w64Taob4`, singleSelect: To Do / In Progress / Done)
 
@@ -232,7 +233,21 @@ En la configuración de la Action "Run Script", define estos input variables:
 
 ---
 
-## Paso 4: Verificación
+## Paso 4: Sync desde `actualizarPrecioRentas.js` (balance → Gestor)
+
+El script `actualizarPrecioRentas.js` ya incluye un STEP 8 que, tras actualizar rentas y cashflows:
+
+1. Navega `balance → linkDeal → deal → recordID` para encontrar el deal en el Gestor
+2. Envía al Gestor:
+   - `historicoCambiosPrecios` (`fldvEH2HFKDEC6KsI`) ← contenido de `avisoNuevoPrecio` del balance
+   - `alquiler mensual` (`fldTJIw17zLdUiXDH`) ← el nuevo precio
+   - `_syncSource` = `'bancos-sync'`
+
+**Input variable adicional**: `gestorPAT` — el Personal Access Token con acceso al Gestor.
+
+---
+
+## Paso 5: Verificación
 
 1. **Test stopCobroInquilino**:
    - En Bancos, cambia `stopCobroInquilino` de un deal a "In Progress"
@@ -243,7 +258,13 @@ En la configuración de la Action "Run Script", define estos input variables:
    - Verifica que la fórmula `estadoBancario` en deals cambia a "Con incidencias"
    - Verifica que el campo `estadoBancario` en Gestor se actualiza
 
-3. **Test deal sin enlace**:
+3. **Test cambio de precio**:
+   - En Bancos, rellena `nuevoPrecio` y `fechaNuevoPrecio` en un balance
+   - Verifica que se ejecuta `actualizarPrecioRentas`
+   - Verifica en Gestor que `alquiler mensual` tiene el nuevo precio
+   - Verifica en Gestor que `historicoCambiosPrecios` tiene la línea de auditoría
+
+4. **Test deal sin enlace**:
    - Verifica que deals sin `recordID` no disparan errores
 
 ---
@@ -268,8 +289,9 @@ En la configuración de la Action "Run Script", define estos input variables:
 - `stopCobroInquilino` (singleSelect)
 - `_syncSource` (singleLineText)
 
-### Gestor - deal (2 campos)
-- `estadoBancario` (singleSelect)
-- `_syncSource` (singleLineText)
+### Gestor - deal (3 campos)
+- `estadoBancario` (singleSelect) — `fldDjs8jdDonwgh6W`
+- `historicoCambiosPrecios` (multilineText) — `fldvEH2HFKDEC6KsI`
+- `_syncSource` (singleLineText) — `fldifPFuiOQMBEWif`
 
-**Total: 14 campos nuevos** (9 en Bancos, 3 en cashflow/balance de apoyo, 2 en Gestor)
+**Total: 15 campos nuevos** (9 en Bancos, 3 en cashflow/balance de apoyo, 3 en Gestor)

@@ -140,6 +140,7 @@ Cada dato tiene un **único owner** que es la fuente de verdad. La mayoría de d
 | `_syncSource` | singleLineText | Identifica origen de última escritura (prevención de loops) |
 | `_syncBancosRecordID` | singleLineText | Record ID del deal correspondiente en Bancos |
 | `estadoBancario` | singleSelect | Resumen del estado operativo en conciliación |
+| `historicoCambiosPrecios` | multilineText | Historial de cambios de precio (desde `avisoNuevoPrecio` del balance) |
 | `stopCobroInquilino` | checkbox/singleSelect | Ya puede existir — se actualiza desde Bancos |
 
 #### En Bancos (deals)
@@ -187,6 +188,7 @@ Este campo en el **Gestor** permite al equipo de gestión ver el estado de cada 
 |--------------|----------------|-------------|
 | `stopCobroInquilino` | `stopCobroInquilino` | Cuando se para/reanuda la operativa de cobro |
 | `alquiler mensual` | `alquiler mensual` | Cuando se actualiza el precio en Bancos |
+| `avisoNuevoPrecio` (balance) | `historicoCambiosPrecios` | Histórico de cambios de precio (vía `actualizarPrecioRentas.js`) |
 | (calculado) | `estadoBancario` | Resumen del estado del deal en conciliación |
 
 ### 4.4 Operaciones solo en Bancos (sin sync de vuelta)
@@ -438,9 +440,9 @@ Cuando se renueva o modifica la póliza en el Gestor, el Scenario 2 actualiza lo
 ### Decisiones confirmadas
 1. **La mayoría de datos se copian una sola vez** al dar de alta el deal en Bancos — no hay sync continuo
 2. **La póliza es el único grupo de campos** con sync continuo Gestor → Bancos
-3. **Solo `stopCobroInquilino`** se sincroniza de Bancos → Gestor
+3. **Bancos → Gestor**: `stopCobroInquilino`, `estadoBancario`, `alquiler mensual` y `historicoCambiosPrecios`
 4. **El estado operativo** se muestra en el Gestor como campo resumen `estadoBancario` (un campo singleSelect por deal)
-5. **Cambios de precio y sistema de pago** son operaciones exclusivas de Bancos, no se reflejan en el Gestor
+5. **Cambios de precio** se sincronizan al Gestor (`alquiler mensual` + `historicoCambiosPrecios`). **Cambios de sistema de pago** son exclusivos de Bancos
 6. **Los datos de partes** se informan por el gestor antes del alta bancaria y no cambian durante la vida del deal
 7. **Make** como middleware de sincronización (infraestructura existente)
 8. **`_syncSource`** como mecanismo de prevención de loops
