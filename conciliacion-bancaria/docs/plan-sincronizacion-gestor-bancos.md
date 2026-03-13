@@ -134,20 +134,15 @@ Cada dato tiene un **único owner** que es la fuente de verdad. La mayoría de d
 
 ### 3.4 Campos nuevos a crear
 
-#### En Gestor (deal)
+#### Campos en Two-Way Sync (ya creados en ambas bases)
 | Campo | Tipo | Propósito |
 |-------|------|-----------|
-| `_syncSource` | singleLineText | Identifica origen de última escritura (prevención de loops) |
-| `_syncBancosRecordID` | singleLineText | Record ID del deal correspondiente en Bancos |
+| `stopCobroInquilino` | singleSelect | Control de cobro (ya existía en Gestor) |
 | `estadoBancario` | singleSelect | Resumen del estado operativo en conciliación |
-| `historicoCambiosPrecios` | multilineText | Historial de cambios de precio (desde `avisoNuevoPrecio` del balance) |
-| `stopCobroInquilino` | checkbox/singleSelect | Ya puede existir — se actualiza desde Bancos |
+| `alquiler mensual` | currency | Precio actual del alquiler |
+| `historicoCambiosPrecios` | multilineText | Historial de cambios de precio |
 
-#### En Bancos (deals)
-| Campo | Tipo | Propósito |
-|-------|------|-----------|
-| `_syncSource` | singleLineText | Identifica origen de última escritura (prevención de loops) |
-
+> Estos campos se sincronizan automáticamente vía two-way sync de Airtable. No requieren `_syncSource` ni prevención de loops.
 > El campo `recordID` ya existente en Bancos cumple la función de enlace con el Gestor.
 
 ### 3.5 Campo `estadoBancario` — Resumen de estado operativo
@@ -180,43 +175,45 @@ Este campo en el **Gestor** permite al equipo de gestión ver el estado de cada 
 
 **Campos**: `numero poliza`, `estado poliza`, `tipo poliza`, `fecha fin poliza`, `coberturaPoliza`, `polizaCoberturaPorcentaje`, `polizaCosteCalculo`, `poliza documento`, `checkPolizaDocumento`, `driveDocIDPoliza`.
 
-### 4.3 Bancos → Gestor: Stop cobro + estado operativo
-**Trigger**: Cuando cambia `stopCobroInquilino` o se recalcula el estado operativo del deal.
+### 4.3 Bancos → Gestor: Two-way sync automático
+**Mecanismo**: Two-way sync nativo de Airtable (no requiere automatizaciones ni API).
 
-**Campos**:
-| Campo Bancos | → Campo Gestor | Caso de uso |
-|--------------|----------------|-------------|
+**Campos en two-way sync**:
+| Campo Bancos | Campo Gestor | Caso de uso |
+|--------------|--------------|-------------|
 | `stopCobroInquilino` | `stopCobroInquilino` | Cuando se para/reanuda la operativa de cobro |
 | `alquiler mensual` | `alquiler mensual` | Cuando se actualiza el precio en Bancos |
-| `avisoNuevoPrecio` (balance) | `historicoCambiosPrecios` | Histórico de cambios de precio (vía `actualizarPrecioRentas.js`) |
-| (calculado) | `estadoBancario` | Resumen del estado del deal en conciliación |
+| `historicoCambiosPrecios` | `historicoCambiosPrecios` | Histórico de cambios de precio (escrito por `actualizarPrecioRentas.js`) |
+| `estadoBancario` (fórmula) | `estadoBancario` | Resumen del estado del deal en conciliación |
+
+> El script `actualizarPrecioRentas.js` escribe `alquiler mensual` y `historicoCambiosPrecios` en el deal de Bancos (STEP 8), y el two-way sync lo propaga al Gestor automáticamente.
 
 ### 4.4 Operaciones solo en Bancos (sin sync de vuelta)
 Estos cambios ocurren en conciliación y **no necesitan reflejarse en el Gestor**:
 - **Cambio de sistema de pago** (`cambiarSistemaPago.js`) — modifica método de cobro/pago
 - **Cancelación de rentas futuras** (`cancelarRentasFuturas.js`) — ajusta balance
 
-> **Nota**: El **cambio de precio** (`actualizarPrecioRentas.js`) sí se sincroniza de vuelta: el nuevo `alquiler mensual` se envía al Gestor.
-
 ---
 
 ## 5. Arquitectura de Sincronización
 
-### 5.1 Opción recomendada: Make (Integromat) como middleware
+### 5.1 Arquitectura híbrida: Two-Way Sync + Make
 
 ```
-┌─────────────┐    Webhook     ┌──────────┐    API       ┌─────────────┐
-│   Gestor    │───────────────→│   Make   │─────────────→│   Bancos    │
-│ (Advancing) │                │ Scenario │              │ (Bancos-ADV)│
-│             │←───────────────│          │←─────────────│             │
-└─────────────┘    API         └──────────┘   Webhook    └─────────────┘
+┌─────────────┐  Two-Way Sync  ┌─────────────┐
+│   Gestor    │◄══════════════►│   Bancos    │   ← stopCobroInquilino, estadoBancario,
+│ (Advancing) │                │ (Bancos-ADV)│     alquiler mensual, historicoCambiosPrecios
+└──────┬──────┘                └──────┬──────┘
+       │                              │
+       │    Webhook     ┌──────────┐  │
+       └───────────────→│   Make   │──┘   ← Alta de deal, póliza (Gestor → Bancos)
+                        │ Scenario │
+                        └──────────┘
 ```
 
-**Justificación**:
-- Ya existe infraestructura Make en el stack actual (webhooks de contratos, SEPA, Unnax)
-- Airtable tiene webhooks nativos (no polling) para detectar cambios
-- Make gestiona transformaciones de datos y manejo de errores
-- Visibilidad y logs centralizados
+**Two-way sync** (nativo de Airtable): Para campos que cambian durante la vida del deal y necesitan visibilidad en ambas bases. Sin código, sin API, sin prevención de loops.
+
+**Make** (middleware): Para la creación de deals (con transformación de datos y campos con tipo diferente) y actualizaciones de póliza.
 
 ### 5.2 Scenarios de Make necesarios
 
@@ -312,38 +309,7 @@ Trigger: Airtable Webhook en base Gestor, tabla deal
 }
 ```
 
-#### Scenario 3: Stop cobro + estado operativo (Bancos → Gestor)
-```
-Trigger: Airtable Webhook en base Bancos, tabla deals
-  → Filtro: campo modificado = stopCobroInquilino
-  → Leer recordID (= Record ID en Gestor)
-  → IF recordID existe:
-      → Update stopCobroInquilino en Gestor
-      → Marcar _syncSource = "make-sync" en Gestor
-  → Log resultado
-```
-
-```
-Trigger: Cambio en tabla balance/cashflow (periódico o por evento)
-  → Calcular estado operativo del deal:
-      - ¿Hay cobros pendientes? ¿Pagos pendientes? ¿Devoluciones? ¿Stop cobro?
-  → IF estado ha cambiado:
-      → Update estadoBancario en Gestor
-      → Marcar _syncSource = "make-sync" en Gestor
-  → Log resultado
-```
-
-### 5.3 Prevención de loops infinitos
-
-**Problema**: Si Gestor actualiza Bancos y eso dispara el webhook de Bancos que actualiza Gestor, se crea un loop.
-
-**Solución recomendada: Campo de control `_syncSource`**:
-- Añadir campo `_syncSource` (singleLineText) en ambas tablas
-- El Scenario que escribe pone `_syncSource = "make-sync"`
-- El webhook filtra: `IF _syncSource = "make-sync" → ignorar`
-- Después del filtro, limpiar `_syncSource`
-
-> Con la arquitectura actual (la mayoría de campos solo se escriben al crear y póliza es unidireccional), el riesgo de loops es muy bajo. Solo `stopCobroInquilino` es bidireccional en teoría, pero en la práctica solo se escribe desde Bancos.
+> **Nota**: El Scenario 3 (Bancos → Gestor) que existía anteriormente para `stopCobroInquilino` y `estadoBancario` **ya no es necesario** — el two-way sync nativo de Airtable se encarga de esta sincronización sin necesidad de automatizaciones, API ni prevención de loops.
 
 ---
 
@@ -439,13 +405,13 @@ Cuando se renueva o modifica la póliza en el Gestor, el Scenario 2 actualiza lo
 
 ### Decisiones confirmadas
 1. **La mayoría de datos se copian una sola vez** al dar de alta el deal en Bancos — no hay sync continuo
-2. **La póliza es el único grupo de campos** con sync continuo Gestor → Bancos
-3. **Bancos → Gestor**: `stopCobroInquilino`, `estadoBancario`, `alquiler mensual` y `historicoCambiosPrecios`
-4. **El estado operativo** se muestra en el Gestor como campo resumen `estadoBancario` (un campo singleSelect por deal)
-5. **Cambios de precio** se sincronizan al Gestor (`alquiler mensual` + `historicoCambiosPrecios`). **Cambios de sistema de pago** son exclusivos de Bancos
-6. **Los datos de partes** se informan por el gestor antes del alta bancaria y no cambian durante la vida del deal
-7. **Make** como middleware de sincronización (infraestructura existente)
-8. **`_syncSource`** como mecanismo de prevención de loops
+2. **La póliza es el único grupo de campos** con sync continuo Gestor → Bancos (vía Make)
+3. **Bancos → Gestor**: `stopCobroInquilino`, `estadoBancario`, `alquiler mensual` y `historicoCambiosPrecios` — **vía two-way sync nativo de Airtable**
+4. **El estado operativo** se muestra en el Gestor como campo resumen `estadoBancario` (fórmula en deals de Bancos)
+5. **Cambios de precio**: `actualizarPrecioRentas.js` escribe en deals de Bancos → two-way sync lo lleva al Gestor
+6. **Cambios de sistema de pago** son exclusivos de Bancos
+7. **Los datos de partes** se informan por el gestor antes del alta bancaria y no cambian durante la vida del deal
+8. **Arquitectura híbrida**: Two-way sync para campos operativos + Make para alta de deal y póliza
 
 ### Sin decisiones pendientes
 Todas las decisiones de ownership y dirección de datos han sido confirmadas.
