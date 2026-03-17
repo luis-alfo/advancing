@@ -5,11 +5,12 @@
 Script de automatizacion de Airtable que, al marcar una etiqueta nueva en un registro de balance (conciliacion bancaria), ejecuta el flujo completo:
 
 1. Lee datos de pagador y cobrador del deal vinculado (sincronizados desde el Excel de control)
-2. Filtra cashflows In pendientes con sistema de pago Caixa
-3. Genera fichero SEPA Direct Debit XML (pain.008.001.02) compatible con CaixaBank
-4. Crea una remesa y vincula los cashflows
-5. Importa los pagos (asigna metodo SEPA y vincula remesa)
-6. Escribe auditoria acumulativa
+2. **Crea o actualiza registros en el gestor bancario** (tabla `bankAccounts`) para pagador y cobrador, y los vincula al balance
+3. Filtra cashflows In pendientes con sistema de pago Caixa
+4. Genera fichero SEPA Direct Debit XML (pain.008.001.02) compatible con CaixaBank
+5. Crea una remesa y vincula los cashflows
+6. Importa los pagos (asigna metodo SEPA y vincula remesa)
+7. Escribe auditoria acumulativa
 
 ## Trigger
 
@@ -70,6 +71,27 @@ Lee del deal vinculado los datos que vienen sincronizados desde el Excel de cont
 
 Si falta el IBAN o nombre del pagador, marca "Error" y aborta.
 
+### Step 2b - Asignacion en el gestor bancario (bankAccounts)
+
+**Este paso es clave:** los datos del Excel no se usan directamente, sino que se informan en el gestor bancario (tabla `bankAccounts` vinculada).
+
+Para el **pagador** (tipo: "Pagador"):
+1. Comprueba si el balance ya tiene un `linkBankAccountCashIn` vinculado
+2. Si existe: actualiza los datos (nombre, IBAN, documento) por si han cambiado en el Excel
+3. Si no existe: busca en `bankAccounts` un registro con el mismo IBAN y tipo "Pagador"
+4. Si lo encuentra: lo vincula al balance
+5. Si no lo encuentra: **crea un registro nuevo** en `bankAccounts` con:
+   - `holderName` = nombre completo del pagador
+   - `recipientIBANAccount` = IBAN del pagador
+   - `holderAccountID` = numero de documento
+   - `accountIDType` = DNI/CIF/NIE (autodetectado)
+   - `tipo` = "Pagador"
+   - `linkDealBalance` y `linkDealBalanceCashIns` = vinculo al balance
+
+Para el **cobrador** (tipo: "Perceptor"):
+- Mismo proceso pero con tipo "Perceptor" y campo `linkBankAccountCashOut`
+- Incluye BIC y codigo bancario adicional
+
 ### Step 3 - Mandato Caixa
 
 - Lee el mandato vinculado al balance (tabla `mandatosCaixa`)
@@ -117,7 +139,7 @@ Similar al script de importacion de rentas existente:
 Escribe una linea acumulativa en `avisoConciliacion`:
 
 ```
-[DD/MM/YYYY HH:MM] CONCILIACION CAIXA -- N cobros por EXXXX | SEPA MsgId: XXX | Remesa: XXX | Pagador: XXX | Mandato: XXX | Tipo: RCUR | Fecha cobro: YYYY-MM-DD
+[DD/MM/YYYY HH:MM] CONCILIACION CAIXA -- N cobros por EXXXX | SEPA MsgId: XXX | Remesa: XXX | Pagador: XXX [gestor:recXXX] | Cobrador: XXX [gestor:recXXX] | Mandato: XXX | Tipo: RCUR | Fecha cobro: YYYY-MM-DD
 ```
 
 ## Tablas y campos utilizados
@@ -129,11 +151,29 @@ Escribe una linea acumulativa en `avisoConciliacion`:
 | linkMeses | `fldFlp2wDVWljyTtC` | Rentas vinculadas |
 | sistemaPago | `fldSVisYm1biJH5jz` | Verificar que es Caixa |
 | importe | `fldtJw4GfIzEtc7h2` | Precio actual |
+| linkBankAccount | `fldZw3yDK5LKFqaAx` | Gestor bancario (general) |
+| linkBankAccountCashIn | `fldEwSNtJlZRHKuRk` | **Pagador** en gestor bancario |
+| linkBankAccountCashOut | `fldI4VmjA6mFbco12` | **Cobrador** en gestor bancario |
 | linkCashflow | `fldVtegaBGTfKnJVO` | Cashflows vinculados |
 | mandatosCaixa | `fldiZEWwafITebXmH` | Mandatos Caixa vinculados |
 | etiquetaConciliacion | CREAR | Trigger del script |
 | avisoConciliacion | CREAR | Auditoria |
 | sepaXML | CREAR | XML generado |
+
+### bankAccounts - Gestor Bancario (`tblN8MtBDlLSQyu9o`)
+| Campo | Field ID | Uso |
+|---|---|---|
+| holderName | `fldpT0lijU9t7WHtU` | Nombre del titular |
+| holderAccountID | `fldcym0YEJPXKcktx` | Numero de documento (NIF/CIF) |
+| recipientIBANAccount | `fldxArd414nF6BtbR` | IBAN del cliente |
+| recipientBIC | `fldMJc2U6ASSLtSGl` | BIC |
+| recipientBankCode | `fld627dcxvnCW7TuW` | Codigo bancario |
+| tipo | `fldo56EdsafbyzWA6` | "Pagador" o "Perceptor" |
+| accountIDType | `fldrQCW1mEowU8fTm` | DNI/CIF/NIE/Otros |
+| linkDealBalance | `fld3xgc019HCaYJZP` | Vinculo al balance |
+| linkDealBalanceCashIns | `fld5aGOXNNTD8oEyH` | Balance para cobros |
+| linkDealBalanceCashOuts | `fldLckfyVd2mmEECQ` | Balance para pagos |
+| mandatosCaixa | `fldEQMnRI4QOU2fcC` | Mandatos Caixa vinculados |
 
 ### deals (`tblWnB9SCfCFoXzfW`)
 | Campo | Field ID | Uso |

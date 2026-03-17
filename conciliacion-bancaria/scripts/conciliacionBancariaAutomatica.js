@@ -13,26 +13,32 @@
 //      Opciones sugeridas: "Pendiente SEPA" / "Procesado" / "Error"
 //   2. Campo "avisoConciliacion" (long text) en tabla balance
 //   3. Campo "sepaXML" (long text) en tabla balance — para el XML generado
-//   4. Campo "ultimaRemesa" (link a remesas) en tabla balance — opcional
 //
 // FUNCIONAMIENTO:
 //   1. Lee el balance y su deal vinculado para obtener datos de pagador/cobrador
-//   2. Asigna pagador y cobrador en el gestor (deals) según datos del Excel/Airtable
-//   3. Filtra cashflows In pendientes con sistema Caixa del mes actual
+//   2. CREA/BUSCA registros de pagador y cobrador en el GESTOR BANCARIO
+//      (tabla bankAccounts) con los datos del Excel/deal, y los vincula al balance
+//      como linkBankAccountCashIn (pagador) y linkBankAccountCashOut (cobrador)
+//   3. Filtra cashflows In pendientes con sistema Caixa
 //   4. Genera el fichero SEPA Direct Debit XML (pain.008.001.02) para CaixaBank
 //   5. Crea registro en tabla remesas y vincula los cashflows
-//   6. Marca los cashflows como importados (status → Cobrado, método → SEPA)
+//   6. Marca los cashflows como importados (método → SEPA)
 //   7. Escribe línea de auditoría en avisoConciliacion (acumulativo)
 //
-// DATOS DEL EXCEL → AIRTABLE:
+// DATOS DEL EXCEL → GESTOR BANCARIO:
 //   Los datos del pagador y cobrador se leen de la tabla deals donde están
-//   sincronizados desde el Excel de control:
-//     - pagadorNombre / pagadorNombreCompleto / pagadorIBAN
-//     - linkPagadorNumeroDocumento / linkPagadorNumeroCuenta
-//     - linkCobrador / linkCobradorNombreCompleto
-//     - linkCobradorNumeroDocumento / linkCobradorNumeroDeCuenta
-//     - linkCobradorSwiftBIC
-//   Estos campos se propagan a los cashflows para la generación SEPA.
+//   sincronizados desde el Excel de control. El script:
+//     1. Lee: pagadorNombre, pagadorIBAN, linkPagadorNumeroDocumento, etc.
+//     2. Busca en bankAccounts si ya existe un registro con ese IBAN
+//     3. Si no existe, CREA el registro en bankAccounts (gestor)
+//     4. Vincula el bankAccount al balance (linkBankAccountCashIn / CashOut)
+//   Campos del gestor bancario (bankAccounts):
+//     - holderName (nombre del titular)
+//     - recipientIBANAccount (IBAN del cliente)
+//     - holderAccountID (número de documento)
+//     - accountIDType (DNI/CIF/NIE)
+//     - tipo (Pagador / Perceptor)
+//     - linkDealBalance (vínculo al balance)
 //
 // MAPEO DE NOMBRES ENTRE TABLAS (sistemaPago):
 //   - balance:  Unnax | Caixa | Manual
@@ -50,6 +56,7 @@ const rentasTable = base.getTable('tbl2izIaOR37sRHGg');
 const cashflowTable = base.getTable('tblxY6upsLDmqzaaL');
 const remesasTable = base.getTable('tbl4wzfXvZICfxqc0');
 const mandatosCaixaTable = base.getTable('tbl3PChHmHfWSzZVs');
+const bankAccountsTable = base.getTable('tblN8MtBDlLSQyu9o');
 
 // --- Field IDs ---
 // Balance
@@ -61,10 +68,26 @@ const FIELD_LINK_MESES = 'fldFlp2wDVWljyTtC';                  // linkMeses (ren
 const FIELD_BALANCE_SISTEMA_PAGO = 'fldSVisYm1biJH5jz';        // sistemaPago (balance)
 const FIELD_BALANCE_IMPORTE = 'fldtJw4GfIzEtc7h2';             // importe
 const FIELD_BALANCE_DEFAULT_TYPE_CASH_IN = 'fldy90BjhT4JiQmI2'; // defaultTypeCashIn (SEPA/Transferencia)
+const FIELD_BALANCE_LINK_BANK_ACCOUNT = 'fldZw3yDK5LKFqaAx';   // linkBankAccount (general)
 const FIELD_BALANCE_LINK_BANK_CASH_IN = 'fldEwSNtJlZRHKuRk';   // linkBankAccountCashIn
+const FIELD_BALANCE_LINK_BANK_CASH_OUT = 'fldI4VmjA6mFbco12';  // linkBankAccountCashOut
 const FIELD_BALANCE_LINK_CASHFLOW = 'fldVtegaBGTfKnJVO';       // linkCashflow
 const FIELD_BALANCE_MANDATOS_CAIXA = 'fldiZEWwafITebXmH';      // mandatosCaixa
 const FIELD_BALANCE_STATUS = 'fldzl5KA8qD5L5ILr';              // status
+
+// BankAccounts (Gestor Bancario)
+const FIELD_BA_HOLDER_NAME = 'fldpT0lijU9t7WHtU';              // holderName
+const FIELD_BA_HOLDER_ACCOUNT_ID = 'fldcym0YEJPXKcktx';        // holderAccountID (NIF/CIF)
+const FIELD_BA_RECIPIENT_IBAN = 'fldxArd414nF6BtbR';           // recipientIBANAccount (IBAN cliente)
+const FIELD_BA_RECIPIENT_BIC = 'fldMJc2U6ASSLtSGl';            // recipientBIC
+const FIELD_BA_RECIPIENT_DIRECT_BIC = 'fldqFHMc49BD59198';     // recipientDirectBIC
+const FIELD_BA_RECIPIENT_BANK_CODE = 'fld627dcxvnCW7TuW';      // recipientBankCode
+const FIELD_BA_TIPO = 'fldo56EdsafbyzWA6';                     // tipo (Pagador/Perceptor)
+const FIELD_BA_ACCOUNT_ID_TYPE = 'fldrQCW1mEowU8fTm';          // accountIDType (DNI/CIF/NIE/Otros)
+const FIELD_BA_LINK_DEAL_BALANCE = 'fld3xgc019HCaYJZP';        // linkDealBalance
+const FIELD_BA_LINK_DEAL_BALANCE_CASH_INS = 'fld5aGOXNNTD8oEyH'; // linkDealBalanceCashIns
+const FIELD_BA_LINK_DEAL_BALANCE_CASH_OUTS = 'fldLckfyVd2mmEECQ'; // linkDealBalanceCashOuts
+const FIELD_BA_MANDATOS_CAIXA = 'fldEQMnRI4QOU2fcC';           // mandatosCaixa
 
 // Deals
 const FIELD_DEAL_PAGADOR_NOMBRE = 'fldjbfiwcIyiDhQf6';         // pagadorNombre
@@ -198,7 +221,9 @@ const balanceRecord = await balanceTable.selectRecordAsync(balanceRecordId, {
         FIELD_BALANCE_SISTEMA_PAGO,
         FIELD_BALANCE_IMPORTE,
         FIELD_BALANCE_DEFAULT_TYPE_CASH_IN,
+        FIELD_BALANCE_LINK_BANK_ACCOUNT,
         FIELD_BALANCE_LINK_BANK_CASH_IN,
+        FIELD_BALANCE_LINK_BANK_CASH_OUT,
         FIELD_BALANCE_LINK_CASHFLOW,
         FIELD_BALANCE_MANDATOS_CAIXA,
         FIELD_BALANCE_STATUS,
@@ -325,6 +350,183 @@ if (!pagadorNombreCompleto) {
     });
     return;
 }
+
+// ============================================================================
+// STEP 2b: Asignar pagador y cobrador en el GESTOR BANCARIO (bankAccounts)
+// ============================================================================
+// La tabla bankAccounts es el gestor bancario vinculado al balance.
+// El script busca si ya existe un registro con el mismo IBAN; si no, lo crea.
+// Luego vincula al balance como linkBankAccountCashIn (pagador) y
+// linkBankAccountCashOut (cobrador).
+// ============================================================================
+
+console.log('--- STEP 2b: Asignando pagador/cobrador en el gestor bancario ---');
+
+// Función auxiliar para detectar tipo de documento español
+function detectAccountIDType(doc) {
+    if (!doc) return null;
+    const clean = doc.replace(/[-\s]/g, '').toUpperCase();
+    if (/^[0-9]{8}[A-Z]$/.test(clean)) return 'DNI';
+    if (/^[XYZ][0-9]{7}[A-Z]$/.test(clean)) return 'NIE';
+    if (/^[A-Z][0-9]{7}[A-Z0-9]$/.test(clean)) return 'CIF';
+    return 'Otros';
+}
+
+// Función para buscar bankAccount existente por IBAN
+async function findBankAccountByIBAN(iban, tipo) {
+    if (!iban) return null;
+    const ibanClean = iban.replace(/\s/g, '').toUpperCase();
+
+    const query = await bankAccountsTable.selectRecordsAsync({
+        fields: [
+            FIELD_BA_RECIPIENT_IBAN,
+            FIELD_BA_TIPO,
+            FIELD_BA_HOLDER_NAME,
+            FIELD_BA_LINK_DEAL_BALANCE,
+        ]
+    });
+
+    for (const record of query.records) {
+        const recIBAN = record.getCellValue(FIELD_BA_RECIPIENT_IBAN);
+        if (!recIBAN) continue;
+        const recIBANClean = recIBAN.replace(/\s/g, '').toUpperCase();
+        if (recIBANClean !== ibanClean) continue;
+
+        // Si se especifica tipo, verificar que coincida
+        if (tipo) {
+            const recTipo = record.getCellValue(FIELD_BA_TIPO);
+            if (recTipo && recTipo.name !== tipo) continue;
+        }
+
+        return record;
+    }
+    return null;
+}
+
+// --- Pagador (tipo: "Pagador" en gestor = deudor SEPA = inquilino) ---
+const existingBankAccountCashIn = balanceRecord.getCellValue(FIELD_BALANCE_LINK_BANK_CASH_IN);
+let pagadorBankAccountId = null;
+
+if (existingBankAccountCashIn && existingBankAccountCashIn.length > 0) {
+    pagadorBankAccountId = existingBankAccountCashIn[0].id;
+    console.log(`Pagador ya vinculado en gestor: ${pagadorBankAccountId}`);
+
+    // Actualizar datos por si han cambiado en el Excel
+    const updatePagador = {};
+    if (pagadorNombreCompleto) updatePagador[FIELD_BA_HOLDER_NAME] = pagadorNombreCompleto;
+    if (pagadorIBAN) updatePagador[FIELD_BA_RECIPIENT_IBAN] = pagadorIBAN.replace(/\s/g, '');
+    if (pagadorDocumento) {
+        updatePagador[FIELD_BA_HOLDER_ACCOUNT_ID] = pagadorDocumento;
+        const idType = detectAccountIDType(pagadorDocumento);
+        if (idType) updatePagador[FIELD_BA_ACCOUNT_ID_TYPE] = { name: idType };
+    }
+
+    if (Object.keys(updatePagador).length > 0) {
+        await bankAccountsTable.updateRecordAsync(pagadorBankAccountId, updatePagador);
+        console.log(`Datos del pagador actualizados en gestor`);
+    }
+} else {
+    // Buscar por IBAN
+    const existingByIBAN = await findBankAccountByIBAN(pagadorIBAN, 'Pagador');
+
+    if (existingByIBAN) {
+        pagadorBankAccountId = existingByIBAN.id;
+        console.log(`Pagador encontrado en gestor por IBAN: ${pagadorBankAccountId}`);
+
+        // Vincular al balance
+        await balanceTable.updateRecordAsync(balanceRecordId, {
+            [FIELD_BALANCE_LINK_BANK_CASH_IN]: [{ id: pagadorBankAccountId }],
+        });
+    } else {
+        // Crear nuevo registro en gestor bancario
+        const pagadorFields = {
+            [FIELD_BA_HOLDER_NAME]: pagadorNombreCompleto,
+            [FIELD_BA_RECIPIENT_IBAN]: pagadorIBAN.replace(/\s/g, ''),
+            [FIELD_BA_TIPO]: { name: 'Pagador' },
+            [FIELD_BA_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],
+            [FIELD_BA_LINK_DEAL_BALANCE_CASH_INS]: [{ id: balanceRecordId }],
+        };
+
+        if (pagadorDocumento) {
+            pagadorFields[FIELD_BA_HOLDER_ACCOUNT_ID] = pagadorDocumento;
+            const idType = detectAccountIDType(pagadorDocumento);
+            if (idType) pagadorFields[FIELD_BA_ACCOUNT_ID_TYPE] = { name: idType };
+        }
+
+        // Extraer BIC del IBAN si es español (4 primeros dígitos del código bancario)
+        const pagadorIBANClean = pagadorIBAN.replace(/\s/g, '');
+        if (pagadorIBANClean.startsWith('ES') && pagadorIBANClean.length >= 8) {
+            pagadorFields[FIELD_BA_RECIPIENT_BANK_CODE] = pagadorIBANClean.slice(4, 8);
+        }
+
+        pagadorBankAccountId = await bankAccountsTable.createRecordAsync(pagadorFields);
+        console.log(`Pagador CREADO en gestor: ${pagadorBankAccountId}`);
+    }
+}
+
+// --- Cobrador (tipo: "Perceptor" en gestor = acreedor SEPA = Advancing) ---
+const existingBankAccountCashOut = balanceRecord.getCellValue(FIELD_BALANCE_LINK_BANK_CASH_OUT);
+let cobradorBankAccountId = null;
+
+if (existingBankAccountCashOut && existingBankAccountCashOut.length > 0) {
+    cobradorBankAccountId = existingBankAccountCashOut[0].id;
+    console.log(`Cobrador ya vinculado en gestor: ${cobradorBankAccountId}`);
+
+    // Actualizar datos por si han cambiado
+    const updateCobrador = {};
+    if (cobradorNombre) updateCobrador[FIELD_BA_HOLDER_NAME] = cobradorNombre;
+    if (cobradorCuenta) updateCobrador[FIELD_BA_RECIPIENT_IBAN] = cobradorCuenta.replace(/\s/g, '');
+    if (cobradorBIC) updateCobrador[FIELD_BA_RECIPIENT_BIC] = cobradorBIC;
+    if (cobradorDocumento) {
+        updateCobrador[FIELD_BA_HOLDER_ACCOUNT_ID] = cobradorDocumento;
+        const idType = detectAccountIDType(cobradorDocumento);
+        if (idType) updateCobrador[FIELD_BA_ACCOUNT_ID_TYPE] = { name: idType };
+    }
+
+    if (Object.keys(updateCobrador).length > 0) {
+        await bankAccountsTable.updateRecordAsync(cobradorBankAccountId, updateCobrador);
+        console.log(`Datos del cobrador actualizados en gestor`);
+    }
+} else {
+    // Buscar por IBAN
+    const existingByIBAN = await findBankAccountByIBAN(cobradorCuenta, 'Perceptor');
+
+    if (existingByIBAN) {
+        cobradorBankAccountId = existingByIBAN.id;
+        console.log(`Cobrador encontrado en gestor por IBAN: ${cobradorBankAccountId}`);
+
+        // Vincular al balance
+        await balanceTable.updateRecordAsync(balanceRecordId, {
+            [FIELD_BALANCE_LINK_BANK_CASH_OUT]: [{ id: cobradorBankAccountId }],
+        });
+    } else {
+        // Crear nuevo registro en gestor bancario
+        const cobradorFields = {
+            [FIELD_BA_HOLDER_NAME]: cobradorNombre,
+            [FIELD_BA_RECIPIENT_IBAN]: cobradorCuenta.replace(/\s/g, ''),
+            [FIELD_BA_TIPO]: { name: 'Perceptor' },
+            [FIELD_BA_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],
+            [FIELD_BA_LINK_DEAL_BALANCE_CASH_OUTS]: [{ id: balanceRecordId }],
+        };
+
+        if (cobradorBIC) cobradorFields[FIELD_BA_RECIPIENT_BIC] = cobradorBIC;
+        if (cobradorDocumento) {
+            cobradorFields[FIELD_BA_HOLDER_ACCOUNT_ID] = cobradorDocumento;
+            const idType = detectAccountIDType(cobradorDocumento);
+            if (idType) cobradorFields[FIELD_BA_ACCOUNT_ID_TYPE] = { name: idType };
+        }
+
+        const cobradorIBANClean = cobradorCuenta.replace(/\s/g, '');
+        if (cobradorIBANClean.startsWith('ES') && cobradorIBANClean.length >= 8) {
+            cobradorFields[FIELD_BA_RECIPIENT_BANK_CODE] = cobradorIBANClean.slice(4, 8);
+        }
+
+        cobradorBankAccountId = await bankAccountsTable.createRecordAsync(cobradorFields);
+        console.log(`Cobrador CREADO en gestor: ${cobradorBankAccountId}`);
+    }
+}
+
+console.log(`Gestor bancario configurado: Pagador=${pagadorBankAccountId}, Cobrador=${cobradorBankAccountId}`);
 
 // ============================================================================
 // STEP 3: Obtener mandato Caixa vinculado al balance
@@ -662,7 +864,7 @@ console.log('SEPA XML guardado en el balance');
 // STEP 9: Escribir auditoría
 // ============================================================================
 
-const lineaAuditoria = `[${formatTimestamp()}] CONCILIACIÓN CAIXA — ${cashflowsParaSEPA.length} cobros por €${importeTotal.toFixed(2)} | SEPA MsgId: ${msgId} | Remesa: ${remesaId} | Pagador: ${pagadorNombreCompleto} (${pagadorIBAN.slice(0, 4)}****) | Mandato: ${mandatoReferencia} | Tipo: ${tipoSecuencia} | Fecha cobro: ${fechaCobroISO}`;
+const lineaAuditoria = `[${formatTimestamp()}] CONCILIACIÓN CAIXA — ${cashflowsParaSEPA.length} cobros por €${importeTotal.toFixed(2)} | SEPA MsgId: ${msgId} | Remesa: ${remesaId} | Pagador: ${pagadorNombreCompleto} (${pagadorIBAN.slice(0, 4)}****) [gestor:${pagadorBankAccountId}] | Cobrador: ${cobradorNombre} [gestor:${cobradorBankAccountId}] | Mandato: ${mandatoReferencia} | Tipo: ${tipoSecuencia} | Fecha cobro: ${fechaCobroISO}`;
 
 const nuevoAviso = avisoExistente
     ? avisoExistente + '\n' + lineaAuditoria
