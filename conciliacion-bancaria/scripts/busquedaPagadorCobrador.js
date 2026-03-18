@@ -128,9 +128,7 @@ async function fetchSheetData(sheetName) {
 
     let response;
     try {
-        // remoteFetchAsync para Airtable Scripting; fallback a fetch si no existe
-        const fetchFn = typeof remoteFetchAsync !== 'undefined' ? remoteFetchAsync : fetch;
-        response = await fetchFn(url, {
+        response = await fetch(url, {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
         });
