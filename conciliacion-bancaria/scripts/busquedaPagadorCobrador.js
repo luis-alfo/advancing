@@ -489,6 +489,27 @@ if (ibanCobradorSheet || nombreCobradorSheet) {
 }
 
 // ============================================================================
+// STEP 4b: Rellenar IBAN en contacto si match fue por nombre/rol
+// ============================================================================
+
+console.log('\n--- STEP 4b: Actualizando IBAN en contactos (si match por nombre/rol) ---');
+
+// Si matcheamos por nombre o rol, el contacto no tenía IBAN → escribirlo
+if (matchPagador && matchPagadorVia !== 'iban' && ibanPagadorSheet && !matchPagador.iban) {
+    await contactosTable.updateRecordAsync(matchPagador.id, {
+        [FIELD_CONTACTO_CUENTA]: ibanPagadorSheet,
+    });
+    console.log(`  ✓ IBAN pagador actualizado en contacto ${matchPagador.nombreCompleto}: ${ibanPagadorSheet}`);
+}
+
+if (matchCobrador && matchCobradorVia !== 'iban' && ibanCobradorSheet && !matchCobrador.iban) {
+    await contactosTable.updateRecordAsync(matchCobrador.id, {
+        [FIELD_CONTACTO_CUENTA]: ibanCobradorSheet,
+    });
+    console.log(`  ✓ IBAN cobrador actualizado en contacto ${matchCobrador.nombreCompleto}: ${ibanCobradorSheet}`);
+}
+
+// ============================================================================
 // STEP 5: Actualizar deal con los matches
 // ============================================================================
 
