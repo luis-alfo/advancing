@@ -20,8 +20,8 @@
 //   2. Lee los contactos vinculados al deal (propietarios, inquilinos, avalistas)
 //   3. Fetch a Google Sheets:
 //      - "Transferencia Propietario" → IBAN del cobrador (propietario)
-//      - "CF Cobros" → IBAN del pagador (inquilino)
-//   4. Busca la fila por id_deal y extrae el IBAN
+//      - "Altas SEPA" → IBAN del pagador (inquilino)
+//   4. Busca la fila por "Nº de Operación" y extrae el IBAN
 //   5. Match: compara el IBAN del Sheet contra los IBANs de los contactos
 //   6. Vincula el contacto que matchea en linkPagador / linkCobrador (record link)
 //      → Los lookups (nombre, IBAN, doc, BIC) se rellenan automáticamente
@@ -63,10 +63,10 @@ const FIELD_CONTACTO_DOC = 'fldDicT1bmEt0RWha';                // numero documen
 // ============================================================================
 
 // Spreadsheet ID: se saca de la URL → https://docs.google.com/spreadsheets/d/ESTE_ID/edit
-const SPREADSHEET_ID = 'TU_SPREADSHEET_ID_AQUI';               // TODO: Configurar
+const SPREADSHEET_ID = '1Vn6XQMv37AajuKZrwwau9kaRlIQd9Bd8QCv-pzmQLg4';
 
-// Google API Key restringida a Sheets API
-const GOOGLE_API_KEY = 'TU_GOOGLE_API_KEY_AQUI';               // TODO: Configurar
+// Google API Key: configurada como secret en Airtable Automations
+const GOOGLE_API_KEY = input.secret("googleAPIKey");
 
 // Nombres de hojas (exactos, incluyendo mayúsculas)
 const SHEET_COBRADOR = 'Transferencia Propietario';             // IBAN del cobrador (propietario)
