@@ -81,8 +81,8 @@ const HEADER_IBAN_PAGADOR = 'Nº de cuenta inquilino';     // Columna IBAN en "A
 
 // Columnas de NOMBRE en Google Sheets (para fallback cuando IBAN no matchea)
 // CONFIGURAR: poner el nombre exacto del cabecero de la columna de nombre en cada hoja
-const HEADER_NOMBRE_PAGADOR = 'Nombre inquilino';          // Columna nombre en "Altas SEPA" — AJUSTAR
-const HEADER_NOMBRE_COBRADOR = 'Nombre propietario';       // Columna nombre en "Transferencia Propietario" — AJUSTAR
+const HEADER_NOMBRE_PAGADOR = 'Nombre inquilino (deudor)';  // Columna E en "Altas SEPA"
+const HEADER_NOMBRE_COBRADOR = 'Nombre propietario';       // Columna N en "Transferencia Propietario"
 
 // ============================================================================
 // UTILIDADES
