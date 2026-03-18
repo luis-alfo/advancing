@@ -72,16 +72,11 @@ const GOOGLE_API_KEY = 'TU_GOOGLE_API_KEY_AQUI';               // TODO: Configur
 const SHEET_COBRADOR = 'Transferencia Propietario';             // IBAN del cobrador
 const SHEET_PAGADOR = 'CF Cobros';                              // IBAN del pagador
 
-// --- Índices de columnas (0-based: A=0, B=1, C=2...) ---
-// TODO: Ajustar según las columnas reales del Google Sheet
-
-// Hoja "Transferencia Propietario" (cobrador = propietario)
-const COL_COBRADOR_ID_DEAL = 0;     // Columna con id_deal
-const COL_COBRADOR_IBAN = 2;        // Columna con IBAN
-
-// Hoja "CF Cobros" (pagador = inquilino)
-const COL_PAGADOR_ID_DEAL = 0;      // Columna con id_deal
-const COL_PAGADOR_IBAN = 2;         // Columna con IBAN
+// --- Nombres de cabeceros en Google Sheets ---
+// La búsqueda se hace por nombre de columna (fila 0 = cabecera)
+const HEADER_NUM_OPERACION = 'Nº de Operación';  // Columna para buscar el deal
+const HEADER_IBAN_COBRADOR = 'IBAN';              // TODO: Ajustar al nombre real de la columna IBAN en "Transferencia Propietario"
+const HEADER_IBAN_PAGADOR = 'IBAN';               // TODO: Ajustar al nombre real de la columna IBAN en "CF Cobros"
 
 // ============================================================================
 // UTILIDADES
@@ -148,17 +143,36 @@ async function fetchSheetData(sheetName) {
 }
 
 /**
- * Busca la primera fila cuyo id_deal coincida (case-insensitive, trimmed).
- * Salta fila 0 (cabecera). Devuelve la fila o null.
+ * Busca el índice de una columna por nombre de cabecero (fila 0).
+ * Comparación case-insensitive y trimmed.
  */
-function findRowByIdDeal(rows, idDeal, colIndex) {
-    if (!rows || rows.length < 2) return null;
-    const target = String(idDeal).trim().toLowerCase();
+function findColumnIndex(headers, headerName) {
+    if (!headers) return -1;
+    const target = headerName.trim().toLowerCase();
+    return headers.findIndex(h => cleanCellValue(h).toLowerCase() === target);
+}
 
+/**
+ * Busca la primera fila cuyo valor en la columna "Nº de Operación" coincida
+ * con el id_deal (case-insensitive, trimmed).
+ * Salta fila 0 (cabecera). Devuelve { row, headers } o null.
+ */
+function findRowByNumOperacion(rows, idDeal) {
+    if (!rows || rows.length < 2) return null;
+
+    const headers = rows[0];
+    const colIndex = findColumnIndex(headers, HEADER_NUM_OPERACION);
+    if (colIndex === -1) {
+        console.error(`  ✗ Cabecero "${HEADER_NUM_OPERACION}" no encontrado. Cabeceros disponibles: ${headers.map(h => `"${h}"`).join(', ')}`);
+        return null;
+    }
+    console.log(`  Columna "${HEADER_NUM_OPERACION}" encontrada en índice ${colIndex}`);
+
+    const target = String(idDeal).trim().toLowerCase();
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length <= colIndex) continue;
-        if (cleanCellValue(row[colIndex]).toLowerCase() === target) return row;
+        if (cleanCellValue(row[colIndex]).toLowerCase() === target) return { row, headers };
     }
     return null;
 }
@@ -294,12 +308,17 @@ let fetchErrors = [];
 // 3a) IBAN cobrador desde "Transferencia Propietario"
 try {
     const rows = await fetchSheetData(SHEET_COBRADOR);
-    const row = findRowByIdDeal(rows, idDeal, COL_COBRADOR_ID_DEAL);
-    if (row) {
-        ibanCobradorSheet = normalizeIBAN(cleanCellValue(row[COL_COBRADOR_IBAN]));
-        console.log(`  ✓ IBAN cobrador del Sheet: ${ibanCobradorSheet}`);
+    const result = findRowByNumOperacion(rows, idDeal);
+    if (result) {
+        const ibanColIndex = findColumnIndex(result.headers, HEADER_IBAN_COBRADOR);
+        if (ibanColIndex === -1) {
+            console.error(`  ✗ Cabecero IBAN "${HEADER_IBAN_COBRADOR}" no encontrado en "${SHEET_COBRADOR}"`);
+        } else {
+            ibanCobradorSheet = normalizeIBAN(cleanCellValue(result.row[ibanColIndex]));
+            console.log(`  ✓ IBAN cobrador del Sheet: ${ibanCobradorSheet}`);
+        }
     } else {
-        console.log(`  ✗ id_deal="${idDeal}" no encontrado en "${SHEET_COBRADOR}"`);
+        console.log(`  ✗ "${HEADER_NUM_OPERACION}"="${idDeal}" no encontrado en "${SHEET_COBRADOR}"`);
     }
 } catch (err) {
     const msg = `Error "${SHEET_COBRADOR}": ${err.message}`;
@@ -310,12 +329,17 @@ try {
 // 3b) IBAN pagador desde "CF Cobros"
 try {
     const rows = await fetchSheetData(SHEET_PAGADOR);
-    const row = findRowByIdDeal(rows, idDeal, COL_PAGADOR_ID_DEAL);
-    if (row) {
-        ibanPagadorSheet = normalizeIBAN(cleanCellValue(row[COL_PAGADOR_IBAN]));
-        console.log(`  ✓ IBAN pagador del Sheet: ${ibanPagadorSheet}`);
+    const result = findRowByNumOperacion(rows, idDeal);
+    if (result) {
+        const ibanColIndex = findColumnIndex(result.headers, HEADER_IBAN_PAGADOR);
+        if (ibanColIndex === -1) {
+            console.error(`  ✗ Cabecero IBAN "${HEADER_IBAN_PAGADOR}" no encontrado en "${SHEET_PAGADOR}"`);
+        } else {
+            ibanPagadorSheet = normalizeIBAN(cleanCellValue(result.row[ibanColIndex]));
+            console.log(`  ✓ IBAN pagador del Sheet: ${ibanPagadorSheet}`);
+        }
     } else {
-        console.log(`  ✗ id_deal="${idDeal}" no encontrado en "${SHEET_PAGADOR}"`);
+        console.log(`  ✗ "${HEADER_NUM_OPERACION}"="${idDeal}" no encontrado en "${SHEET_PAGADOR}"`);
     }
 } catch (err) {
     const msg = `Error "${SHEET_PAGADOR}": ${err.message}`;
