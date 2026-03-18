@@ -69,14 +69,14 @@ const SPREADSHEET_ID = 'TU_SPREADSHEET_ID_AQUI';               // TODO: Configur
 const GOOGLE_API_KEY = 'TU_GOOGLE_API_KEY_AQUI';               // TODO: Configurar
 
 // Nombres de hojas (exactos, incluyendo mayúsculas)
-const SHEET_COBRADOR = 'Transferencia Propietario';             // IBAN del cobrador
-const SHEET_PAGADOR = 'CF Cobros';                              // IBAN del pagador
+const SHEET_COBRADOR = 'Transferencia Propietario';             // IBAN del cobrador (propietario)
+const SHEET_PAGADOR = 'Altas SEPA';                             // IBAN del pagador (inquilino)
 
 // --- Nombres de cabeceros en Google Sheets ---
 // La búsqueda se hace por nombre de columna (fila 0 = cabecera)
-const HEADER_NUM_OPERACION = 'Nº de Operación';  // Columna para buscar el deal
-const HEADER_IBAN_COBRADOR = 'IBAN';              // TODO: Ajustar al nombre real de la columna IBAN en "Transferencia Propietario"
-const HEADER_IBAN_PAGADOR = 'IBAN';               // TODO: Ajustar al nombre real de la columna IBAN en "CF Cobros"
+const HEADER_NUM_OPERACION = 'Nº de Operación';          // Columna para buscar el deal
+const HEADER_IBAN_COBRADOR = 'Numero de cuenta';          // Columna IBAN en "Transferencia Propietario"
+const HEADER_IBAN_PAGADOR = 'Nº de cuenta inquilino';     // Columna IBAN en "Altas SEPA"
 
 // ============================================================================
 // UTILIDADES
