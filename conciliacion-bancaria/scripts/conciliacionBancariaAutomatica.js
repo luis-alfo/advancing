@@ -375,7 +375,7 @@ function detectAccountIDType(doc) {
 // Función para buscar bankAccount existente por IBAN
 async function findBankAccountByIBAN(iban, tipo) {
     if (!iban) return null;
-    const ibanClean = iban.replace(/\s/g, '').toUpperCase();
+    const ibanClean = iban.replace(/[\s\-\.]/g, '').toUpperCase();
 
     const query = await bankAccountsTable.selectRecordsAsync({
         fields: [
@@ -389,7 +389,7 @@ async function findBankAccountByIBAN(iban, tipo) {
     for (const record of query.records) {
         const recIBAN = record.getCellValue(FIELD_BA_RECIPIENT_IBAN);
         if (!recIBAN) continue;
-        const recIBANClean = recIBAN.replace(/\s/g, '').toUpperCase();
+        const recIBANClean = recIBAN.replace(/[\s\-\.]/g, '').toUpperCase();
         if (recIBANClean !== ibanClean) continue;
 
         // Si se especifica tipo, verificar que coincida
@@ -414,7 +414,7 @@ if (existingBankAccountCashIn && existingBankAccountCashIn.length > 0) {
     // Actualizar datos por si han cambiado en el Excel
     const updatePagador = {};
     if (pagadorNombreCompleto) updatePagador[FIELD_BA_HOLDER_NAME] = pagadorNombreCompleto;
-    if (pagadorIBAN) updatePagador[FIELD_BA_RECIPIENT_IBAN] = pagadorIBAN.replace(/\s/g, '');
+    if (pagadorIBAN) updatePagador[FIELD_BA_RECIPIENT_IBAN] = pagadorIBAN.replace(/[\s\-\.]/g, '');
     if (pagadorDocumento) {
         updatePagador[FIELD_BA_HOLDER_ACCOUNT_ID] = pagadorDocumento;
         const idType = detectAccountIDType(pagadorDocumento);
@@ -441,7 +441,7 @@ if (existingBankAccountCashIn && existingBankAccountCashIn.length > 0) {
         // Crear nuevo registro en gestor bancario
         const pagadorFields = {
             [FIELD_BA_HOLDER_NAME]: pagadorNombreCompleto,
-            [FIELD_BA_RECIPIENT_IBAN]: pagadorIBAN.replace(/\s/g, ''),
+            [FIELD_BA_RECIPIENT_IBAN]: pagadorIBAN.replace(/[\s\-\.]/g, ''),
             [FIELD_BA_TIPO]: { name: 'Pagador' },
             [FIELD_BA_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],
             [FIELD_BA_LINK_DEAL_BALANCE_CASH_INS]: [{ id: balanceRecordId }],
@@ -454,7 +454,7 @@ if (existingBankAccountCashIn && existingBankAccountCashIn.length > 0) {
         }
 
         // Extraer BIC del IBAN si es español (4 primeros dígitos del código bancario)
-        const pagadorIBANClean = pagadorIBAN.replace(/\s/g, '');
+        const pagadorIBANClean = pagadorIBAN.replace(/[\s\-\.]/g, '');
         if (pagadorIBANClean.startsWith('ES') && pagadorIBANClean.length >= 8) {
             pagadorFields[FIELD_BA_RECIPIENT_BANK_CODE] = pagadorIBANClean.slice(4, 8);
         }
@@ -475,7 +475,7 @@ if (existingBankAccountCashOut && existingBankAccountCashOut.length > 0) {
     // Actualizar datos por si han cambiado
     const updateCobrador = {};
     if (cobradorNombre) updateCobrador[FIELD_BA_HOLDER_NAME] = cobradorNombre;
-    if (cobradorCuenta) updateCobrador[FIELD_BA_RECIPIENT_IBAN] = cobradorCuenta.replace(/\s/g, '');
+    if (cobradorCuenta) updateCobrador[FIELD_BA_RECIPIENT_IBAN] = cobradorCuenta.replace(/[\s\-\.]/g, '');
     if (cobradorBIC) updateCobrador[FIELD_BA_RECIPIENT_BIC] = cobradorBIC;
     if (cobradorDocumento) {
         updateCobrador[FIELD_BA_HOLDER_ACCOUNT_ID] = cobradorDocumento;
@@ -503,7 +503,7 @@ if (existingBankAccountCashOut && existingBankAccountCashOut.length > 0) {
         // Crear nuevo registro en gestor bancario
         const cobradorFields = {
             [FIELD_BA_HOLDER_NAME]: cobradorNombre,
-            [FIELD_BA_RECIPIENT_IBAN]: cobradorCuenta.replace(/\s/g, ''),
+            [FIELD_BA_RECIPIENT_IBAN]: cobradorCuenta.replace(/[\s\-\.]/g, ''),
             [FIELD_BA_TIPO]: { name: 'Perceptor' },
             [FIELD_BA_LINK_DEAL_BALANCE]: [{ id: balanceRecordId }],
             [FIELD_BA_LINK_DEAL_BALANCE_CASH_OUTS]: [{ id: balanceRecordId }],
@@ -516,7 +516,7 @@ if (existingBankAccountCashOut && existingBankAccountCashOut.length > 0) {
             if (idType) cobradorFields[FIELD_BA_ACCOUNT_ID_TYPE] = { name: idType };
         }
 
-        const cobradorIBANClean = cobradorCuenta.replace(/\s/g, '');
+        const cobradorIBANClean = cobradorCuenta.replace(/[\s\-\.]/g, '');
         if (cobradorIBANClean.startsWith('ES') && cobradorIBANClean.length >= 8) {
             cobradorFields[FIELD_BA_RECIPIENT_BANK_CODE] = cobradorIBANClean.slice(4, 8);
         }
@@ -735,7 +735,7 @@ let sepaXML = `<?xml version="1.0" encoding="UTF-8"?>
       </Cdtr>
       <CdtrAcct>
         <Id>
-          <IBAN>${xmlEscape(cobradorCuenta.replace(/\s/g, ''))}</IBAN>
+          <IBAN>${xmlEscape(cobradorCuenta.replace(/[\s\-\.]/g, ''))}</IBAN>
         </Id>
       </CdtrAcct>
       <CdtrAgt>
@@ -791,7 +791,7 @@ for (let i = 0; i < cashflowsParaSEPA.length; i++) {
         </Dbtr>
         <DbtrAcct>
           <Id>
-            <IBAN>${xmlEscape(pagadorIBAN.replace(/\s/g, ''))}</IBAN>
+            <IBAN>${xmlEscape(pagadorIBAN.replace(/[\s\-\.]/g, ''))}</IBAN>
           </Id>
         </DbtrAcct>
         <RmtInf>
