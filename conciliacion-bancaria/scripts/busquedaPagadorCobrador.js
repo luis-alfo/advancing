@@ -3,44 +3,30 @@
 // ============================================================================
 //
 // BASE: Advancing (appuV5kGKzKdXlhoR)
-//   → Los datos encontrados se sincronizan automáticamente a Bancos
 //
-// TRIGGER: "When record matches conditions" en tabla deals (Advancing)
+// TRIGGER: "When record matches conditions" en tabla deal
 //   - Condiciones: busquedaBancos = "Pendiente"
 //
 // INPUT VARIABLES (configurar en la automatización):
 //   - dealRecordId: Record ID del registro de deal (del trigger)
 //
-// PREREQUISITOS EN AIRTABLE (crear manualmente antes de usar):
-//   1. Campo "busquedaBancos" (single select) en tabla deals de Advancing
-//      Opciones: "Pendiente" / "Encontrado" / "No encontrado" / "Parcial" / "Error"
-//   2. Campo "avisoBusquedaBancos" (long text) en tabla deals de Advancing
-//
-// PREREQUISITOS GOOGLE SHEETS:
-//   1. Crear Google API Key restringida a Sheets API (ver busquedaPagadorCobrador.md)
-//   2. Poner el spreadsheet como "Anyone with the link can view"
-//   3. Configurar SPREADSHEET_ID y GOOGLE_API_KEY abajo
+// PREREQUISITOS:
+//   - Google API Key restringida a Sheets API (ver busquedaPagadorCobrador.md)
+//   - Spreadsheet con acceso "Anyone with the link can view"
+//   - Campo "avisoBusquedaBancos" (long text) en tabla deal — CREAR si no existe
 //
 // FUNCIONAMIENTO:
-//   1. Lee el deal en Advancing y obtiene su id_deal
-//   2. Fetch a Google Sheets para obtener los datos:
-//      - Hoja "Transferencia Propietario" → datos del cobrador (propietario)
-//      - Hoja "CF Cobros" → datos del pagador (inquilino)
-//   3. Busca la fila con el id_deal correspondiente
-//   4. Normaliza los IBANs (sin espacios, guiones, todo mayúsculas)
-//   5. Escribe los datos en los campos linkPagador* / linkCobrador* del deal
-//   6. Actualiza busquedaBancos → "Encontrado" / "No encontrado" / "Parcial" / "Error"
-//   7. Escribe línea de auditoría acumulativa en avisoBusquedaBancos
-//
-// HOJAS DEL GOOGLE SHEET:
-//   - "Transferencia Propietario": datos del cobrador (propietario que recibe pago)
-//     Columnas esperadas: id_deal | nombre | IBAN | documento | BIC
-//   - "CF Cobros": datos del pagador (inquilino que paga)
-//     Columnas esperadas: id_deal | nombre | IBAN | documento
-//
-// NOTA: Este script corre en Advancing. Los field IDs deben ser los de Advancing,
-//   NO los de Bancos. Los IDs actuales son los de Bancos (del schema disponible)
-//   y pueden necesitar ajuste. Verificar en Advancing > API docs > deals.
+//   1. Lee el deal y obtiene su id_deal
+//   2. Lee los contactos vinculados al deal (propietarios, inquilinos, avalistas)
+//   3. Fetch a Google Sheets:
+//      - "Transferencia Propietario" → IBAN del cobrador (propietario)
+//      - "CF Cobros" → IBAN del pagador (inquilino)
+//   4. Busca la fila por id_deal y extrae el IBAN
+//   5. Match: compara el IBAN del Sheet contra los IBANs de los contactos
+//   6. Vincula el contacto que matchea en linkPagador / linkCobrador (record link)
+//      → Los lookups (nombre, IBAN, doc, BIC) se rellenan automáticamente
+//   7. Actualiza busquedaBancos → "Encontrado" / "No encontrado" / "Error"
+//   8. Escribe línea de auditoría acumulativa en avisoBusquedaBancos
 //
 // ============================================================================
 
@@ -48,69 +34,54 @@ const config = input.config();
 const dealRecordId = config.dealRecordId;
 
 // --- Referencias a tablas (Advancing) ---
-// TODO: Verificar que este table ID es correcto en Advancing.
-//       Si la tabla deals en Advancing tiene un ID distinto, actualizarlo.
-//       El ID actual viene del schema de Bancos donde la tabla se llama "deals".
-const dealsTable = base.getTable('tblWnB9SCfCFoXzfW');
+const dealTable = base.getTable('tblwx73iceuKNaz68');           // deal
+const contactosTable = base.getTable('tbl7HVrBNBY9cSXzj');     // contactos
 
-// --- Field IDs ---
-// IMPORTANTE: Estos field IDs vienen del schema de Bancos. Si los campos en
-// Advancing tienen IDs distintos (por ser tablas independientes, no synced),
-// hay que sustituirlos por los IDs reales de Advancing.
-// Para obtenerlos: Advancing > Help > API documentation > deals table.
-
-// Deal — identificación
-const FIELD_DEAL_INDEX = 'fldJ77NBAlUHSyFmY';                  // indexDeal
-const FIELD_DEAL_ID_DEAL = 'fldVa3bfj7ej1vb1J';                // id_deal
-const FIELD_BUSQUEDA_BANCOS = 'busquedaBancos';                 // CREAR: single select
+// --- Field IDs: Deal ---
+const FIELD_INDEX_DEAL = 'fldy5iJC8jL3oC44d';                  // indexDeal (formula)
+const FIELD_ID_DEAL = 'fldnvZWV2jyROqgGl';                     // id_deal (text)
+const FIELD_BUSQUEDA_BANCOS = 'fldOGuLjLG0RnkcQH';             // busquedaBancos (single select)
 const FIELD_AVISO_BUSQUEDA = 'avisoBusquedaBancos';             // CREAR: long text
 
-// Deal — campos pagador (a rellenar desde Google Sheets)
-const FIELD_DEAL_PAGADOR_NOMBRE = 'fldjbfiwcIyiDhQf6';         // pagadorNombre
-const FIELD_DEAL_PAGADOR_NOMBRE_COMPLETO = 'fldMh3Lozbh20yv0l'; // pagadorNombreCompleto
-const FIELD_DEAL_PAGADOR_IBAN = 'flda2pglffZTzlTTS';           // pagadorIBAN
-const FIELD_DEAL_PAGADOR_DOC = 'fldDwt4Jb5Szp4D5S';            // linkPagadorNumeroDocumento
-const FIELD_DEAL_PAGADOR_CUENTA = 'fldjAksJk2dDWN7Td';         // linkPagadorNumeroCuenta
-const FIELD_DEAL_PAGADOR_NOMBRE_COMP2 = 'fldeg2ZjqDixv9G1i';   // linkPagadorNombreCompleto
+// Links a contactos (record links → contactos)
+const FIELD_LINK_PROPIETARIO = 'fldIFVkAtmKJmo2qo';            // id_propietariolink
+const FIELD_LINK_INQUILINO = 'fldTrPxDj6rtOjONv';              // inquilino link
+const FIELD_LINK_AVALISTA = 'fldoCJFeFTQ74HX6F';               // id_avalista link
 
-// Deal — campos cobrador (a rellenar desde Google Sheets)
-const FIELD_DEAL_COBRADOR = 'fldXkD5aA9ho0WHqi';               // linkCobrador
-const FIELD_DEAL_COBRADOR_NOMBRE = 'fld5xxivn9SoV3Mqc';        // linkCobradorNombreCompleto
-const FIELD_DEAL_COBRADOR_DOC = 'fldlbnM7EAfB51K9e';           // linkCobradorNumeroDocumento
-const FIELD_DEAL_COBRADOR_CUENTA = 'fldWoxur4wvXNMVl7';        // linkCobradorNumeroDeCuenta
-const FIELD_DEAL_COBRADOR_BIC = 'fld73WKraSn9Qd9gb';           // linkCobradorSwiftBIC
+// Links pagador/cobrador (record links → contactos) — los que rellenamos
+const FIELD_LINK_PAGADOR = 'fldQFS4EZbVBDsPZW';                // linkPagador
+const FIELD_LINK_COBRADOR = 'fldGM0dMF3630o2cx';               // linkCobrador
+
+// --- Field IDs: Contactos ---
+const FIELD_CONTACTO_NOMBRE = 'fld9pjRDwkZhflVna';             // nombre
+const FIELD_CONTACTO_CUENTA = 'fldUY0qcYZGBQjuk1';             // numero de cuenta (IBAN)
+const FIELD_CONTACTO_TIPO = 'fldDfGSRXsZggcAlq';               // tipo contacto (select)
+const FIELD_CONTACTO_DOC = 'fldDicT1bmEt0RWha';                // numero documento
 
 // ============================================================================
 // CONFIGURACIÓN GOOGLE SHEETS
 // ============================================================================
 
-// Spreadsheet ID: se saca de la URL del Google Sheet
-// Ejemplo: https://docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/edit
+// Spreadsheet ID: se saca de la URL → https://docs.google.com/spreadsheets/d/ESTE_ID/edit
 const SPREADSHEET_ID = 'TU_SPREADSHEET_ID_AQUI';               // TODO: Configurar
 
-// Google API Key restringida a Sheets API (ver docs para crearla)
+// Google API Key restringida a Sheets API
 const GOOGLE_API_KEY = 'TU_GOOGLE_API_KEY_AQUI';               // TODO: Configurar
 
-// Nombres de hojas (exactos, incluyendo mayúsculas/tildes)
-const SHEET_COBRADOR = 'Transferencia Propietario';             // Datos del cobrador
-const SHEET_PAGADOR = 'CF Cobros';                              // Datos del pagador
+// Nombres de hojas (exactos, incluyendo mayúsculas)
+const SHEET_COBRADOR = 'Transferencia Propietario';             // IBAN del cobrador
+const SHEET_PAGADOR = 'CF Cobros';                              // IBAN del pagador
 
-// --- Índices de columnas en cada hoja (0-based) ---
-// TODO: Ajustar según las columnas reales de tu Google Sheet.
-//       Abre la hoja y cuenta: A=0, B=1, C=2, etc.
+// --- Índices de columnas (0-based: A=0, B=1, C=2...) ---
+// TODO: Ajustar según las columnas reales del Google Sheet
 
-// Hoja "Transferencia Propietario" (cobrador)
-const COL_COBRADOR_ID_DEAL = 0;     // Columna A: id_deal
-const COL_COBRADOR_NOMBRE = 1;      // Columna B: nombre completo
-const COL_COBRADOR_IBAN = 2;        // Columna C: IBAN
-const COL_COBRADOR_DOC = 3;         // Columna D: número documento (DNI/NIE/CIF)
-const COL_COBRADOR_BIC = 4;         // Columna E: BIC/SWIFT
+// Hoja "Transferencia Propietario" (cobrador = propietario)
+const COL_COBRADOR_ID_DEAL = 0;     // Columna con id_deal
+const COL_COBRADOR_IBAN = 2;        // Columna con IBAN
 
-// Hoja "CF Cobros" (pagador)
-const COL_PAGADOR_ID_DEAL = 0;      // Columna A: id_deal
-const COL_PAGADOR_NOMBRE = 1;       // Columna B: nombre completo
-const COL_PAGADOR_IBAN = 2;         // Columna C: IBAN
-const COL_PAGADOR_DOC = 3;          // Columna D: número documento (DNI/NIE/CIF)
+// Hoja "CF Cobros" (pagador = inquilino)
+const COL_PAGADOR_ID_DEAL = 0;      // Columna con id_deal
+const COL_PAGADOR_IBAN = 2;         // Columna con IBAN
 
 // ============================================================================
 // UTILIDADES
@@ -127,22 +98,11 @@ function formatTimestamp() {
 }
 
 /**
- * Normaliza un IBAN: elimina espacios, guiones, puntos y pasa a mayúsculas.
+ * Normaliza un IBAN: elimina espacios, guiones, puntos → mayúsculas.
  */
 function normalizeIBAN(iban) {
     if (!iban) return '';
     return iban.replace(/[\s\-\.]/g, '').toUpperCase().trim();
-}
-
-/**
- * Valida formato básico de IBAN (2 letras país + 2 dígitos control + cuerpo).
- */
-function isValidIBAN(iban) {
-    if (!iban) return false;
-    const n = normalizeIBAN(iban);
-    if (/^ES\d{22}$/.test(n)) return true;                     // España
-    if (/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/.test(n)) return true;  // Genérico
-    return false;
 }
 
 /**
@@ -156,14 +116,9 @@ function cleanCellValue(val) {
 // ============================================================================
 // GOOGLE SHEETS: Lectura via API Key
 // ============================================================================
-// El spreadsheet debe estar como "Anyone with the link can view".
-// Para producción con datos sensibles, considerar migrar a un proxy
-// (Cloud Function / Make webhook) que use Service Account.
-// ============================================================================
 
 /**
  * Obtiene todas las filas de una hoja del Google Sheet.
- * Devuelve un array de arrays (filas × columnas).
  */
 async function fetchSheetData(sheetName) {
     const range = encodeURIComponent(`${sheetName}!A:Z`);
@@ -178,7 +133,7 @@ async function fetchSheetData(sheetName) {
             headers: { 'Accept': 'application/json' },
         });
     } catch (err) {
-        throw new Error(`Error de red al conectar con Google Sheets: ${err.message}`);
+        throw new Error(`Error de red: ${err.message}`);
     }
 
     if (!response.ok) {
@@ -188,69 +143,56 @@ async function fetchSheetData(sheetName) {
 
     const data = await response.json();
     const rows = data.values || [];
-
     console.log(`  → ${rows.length} filas (incluyendo cabecera)`);
     return rows;
 }
 
 /**
  * Busca la primera fila cuyo id_deal coincida (case-insensitive, trimmed).
- * Salta la fila 0 (cabecera).
+ * Salta fila 0 (cabecera). Devuelve la fila o null.
  */
-function findRowByIdDeal(rows, idDeal, idDealColIndex) {
+function findRowByIdDeal(rows, idDeal, colIndex) {
     if (!rows || rows.length < 2) return null;
-
     const target = String(idDeal).trim().toLowerCase();
 
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || row.length <= idDealColIndex) continue;
-
-        const cell = cleanCellValue(row[idDealColIndex]).toLowerCase();
-        if (cell === target) {
-            return row;
-        }
+        if (!row || row.length <= colIndex) continue;
+        if (cleanCellValue(row[colIndex]).toLowerCase() === target) return row;
     }
     return null;
 }
 
 // ============================================================================
-// STEP 1: Leer el deal en Advancing y validar
+// STEP 1: Leer el deal y validar
 // ============================================================================
 
 console.log(`\n========================================`);
 console.log(`BÚSQUEDA PAGADOR/COBRADOR`);
-console.log(`Base: Advancing`);
 console.log(`========================================`);
-console.log(`Procesando deal: ${dealRecordId}`);
+console.log(`Deal record: ${dealRecordId}`);
 
-const dealRecord = await dealsTable.selectRecordAsync(dealRecordId, {
+const dealRecord = await dealTable.selectRecordAsync(dealRecordId, {
     fields: [
-        FIELD_DEAL_INDEX,
-        FIELD_DEAL_ID_DEAL,
+        FIELD_INDEX_DEAL,
+        FIELD_ID_DEAL,
         FIELD_BUSQUEDA_BANCOS,
         FIELD_AVISO_BUSQUEDA,
-        FIELD_DEAL_PAGADOR_NOMBRE,
-        FIELD_DEAL_PAGADOR_NOMBRE_COMPLETO,
-        FIELD_DEAL_PAGADOR_IBAN,
-        FIELD_DEAL_PAGADOR_DOC,
-        FIELD_DEAL_PAGADOR_CUENTA,
-        FIELD_DEAL_PAGADOR_NOMBRE_COMP2,
-        FIELD_DEAL_COBRADOR,
-        FIELD_DEAL_COBRADOR_NOMBRE,
-        FIELD_DEAL_COBRADOR_DOC,
-        FIELD_DEAL_COBRADOR_CUENTA,
-        FIELD_DEAL_COBRADOR_BIC,
+        FIELD_LINK_PROPIETARIO,
+        FIELD_LINK_INQUILINO,
+        FIELD_LINK_AVALISTA,
+        FIELD_LINK_PAGADOR,
+        FIELD_LINK_COBRADOR,
     ]
 });
 
 if (!dealRecord) {
-    console.error(`Deal ${dealRecordId} no encontrado en Advancing`);
-    throw new Error('Registro de deal no encontrado');
+    console.error(`Deal ${dealRecordId} no encontrado`);
+    throw new Error('Deal no encontrado');
 }
 
-const idDeal = dealRecord.getCellValue(FIELD_DEAL_ID_DEAL);
-const indexDeal = dealRecord.getCellValue(FIELD_DEAL_INDEX);
+const idDeal = dealRecord.getCellValue(FIELD_ID_DEAL);
+const indexDeal = dealRecord.getCellValueAsString(FIELD_INDEX_DEAL);
 const busqueda = dealRecord.getCellValue(FIELD_BUSQUEDA_BANCOS);
 const avisoExistente = dealRecord.getCellValue(FIELD_AVISO_BUSQUEDA) || '';
 
@@ -258,16 +200,16 @@ console.log(`Deal: ${indexDeal || dealRecordId}`);
 console.log(`id_deal: ${idDeal}`);
 console.log(`busquedaBancos: ${busqueda ? busqueda.name : '(vacío)'}`);
 
-// --- Validaciones ---
+// Validaciones
 if (!busqueda || busqueda.name !== 'Pendiente') {
     console.log('busquedaBancos no es "Pendiente". Abortando.');
     return;
 }
 
 if (!idDeal) {
-    const msg = 'El deal no tiene id_deal. No se puede buscar en Google Sheets.';
+    const msg = 'El deal no tiene id_deal.';
     console.error(msg);
-    await dealsTable.updateRecordAsync(dealRecordId, {
+    await dealTable.updateRecordAsync(dealRecordId, {
         [FIELD_BUSQUEDA_BANCOS]: { name: 'Error' },
         [FIELD_AVISO_BUSQUEDA]: avisoExistente
             ? avisoExistente + '\n' + `[${formatTimestamp()}] ERROR: ${msg}`
@@ -277,37 +219,106 @@ if (!idDeal) {
 }
 
 // ============================================================================
-// STEP 2: Fetch datos de Google Sheets
+// STEP 2: Leer contactos vinculados al deal
 // ============================================================================
 
-console.log('\n--- STEP 2: Obteniendo datos de Google Sheets ---');
+console.log('\n--- STEP 2: Leyendo contactos del deal ---');
 
-let cobradorRow = null;
-let pagadorRow = null;
+// Recopilar todos los contactos vinculados (propietarios, inquilinos, avalistas)
+const linkedProp = dealRecord.getCellValue(FIELD_LINK_PROPIETARIO) || [];
+const linkedInq = dealRecord.getCellValue(FIELD_LINK_INQUILINO) || [];
+const linkedAval = dealRecord.getCellValue(FIELD_LINK_AVALISTA) || [];
+
+const allContactIds = [
+    ...linkedProp.map(r => ({ id: r.id, rol: 'propietario' })),
+    ...linkedInq.map(r => ({ id: r.id, rol: 'inquilino' })),
+    ...linkedAval.map(r => ({ id: r.id, rol: 'avalista' })),
+];
+
+console.log(`  Propietarios: ${linkedProp.length}, Inquilinos: ${linkedInq.length}, Avalistas: ${linkedAval.length}`);
+console.log(`  Total contactos: ${allContactIds.length}`);
+
+if (allContactIds.length === 0) {
+    const msg = 'El deal no tiene contactos vinculados (ni propietarios, ni inquilinos, ni avalistas).';
+    console.error(msg);
+    await dealTable.updateRecordAsync(dealRecordId, {
+        [FIELD_BUSQUEDA_BANCOS]: { name: 'Error' },
+        [FIELD_AVISO_BUSQUEDA]: avisoExistente
+            ? avisoExistente + '\n' + `[${formatTimestamp()}] ERROR: ${msg}`
+            : `[${formatTimestamp()}] ERROR: ${msg}`,
+    });
+    return;
+}
+
+// Leer datos de cada contacto (nombre, IBAN, documento)
+const contactos = [];
+for (const c of allContactIds) {
+    const rec = await contactosTable.selectRecordAsync(c.id, {
+        fields: [
+            FIELD_CONTACTO_NOMBRE,
+            FIELD_CONTACTO_CUENTA,
+            FIELD_CONTACTO_TIPO,
+            FIELD_CONTACTO_DOC,
+        ]
+    });
+    if (rec) {
+        const nombre = rec.getCellValueAsString(FIELD_CONTACTO_NOMBRE);
+        const ibanRaw = rec.getCellValue(FIELD_CONTACTO_CUENTA) || '';
+        const iban = normalizeIBAN(ibanRaw);
+        const tipo = rec.getCellValue(FIELD_CONTACTO_TIPO);
+        const doc = rec.getCellValue(FIELD_CONTACTO_DOC) || '';
+
+        contactos.push({
+            id: c.id,
+            rol: c.rol,
+            nombre,
+            iban,
+            ibanRaw,
+            tipo: tipo ? tipo.name : '',
+            doc,
+        });
+        console.log(`  → ${c.rol}: ${nombre} | IBAN: ${iban || '(vacío)'} | Doc: ${doc}`);
+    }
+}
+
+// ============================================================================
+// STEP 3: Fetch IBANs de Google Sheets
+// ============================================================================
+
+console.log('\n--- STEP 3: Obteniendo IBANs de Google Sheets ---');
+
+let ibanPagadorSheet = null;
+let ibanCobradorSheet = null;
 let fetchErrors = [];
 
-// 2a) Buscar cobrador en "Transferencia Propietario"
+// 3a) IBAN cobrador desde "Transferencia Propietario"
 try {
-    const sheetData = await fetchSheetData(SHEET_COBRADOR);
-    cobradorRow = findRowByIdDeal(sheetData, idDeal, COL_COBRADOR_ID_DEAL);
-    console.log(cobradorRow
-        ? `  ✓ Cobrador encontrado en "${SHEET_COBRADOR}"`
-        : `  ✗ Cobrador NO encontrado para id_deal="${idDeal}"`);
+    const rows = await fetchSheetData(SHEET_COBRADOR);
+    const row = findRowByIdDeal(rows, idDeal, COL_COBRADOR_ID_DEAL);
+    if (row) {
+        ibanCobradorSheet = normalizeIBAN(cleanCellValue(row[COL_COBRADOR_IBAN]));
+        console.log(`  ✓ IBAN cobrador del Sheet: ${ibanCobradorSheet}`);
+    } else {
+        console.log(`  ✗ id_deal="${idDeal}" no encontrado en "${SHEET_COBRADOR}"`);
+    }
 } catch (err) {
-    const msg = `Error leyendo "${SHEET_COBRADOR}": ${err.message}`;
+    const msg = `Error "${SHEET_COBRADOR}": ${err.message}`;
     console.error(`  ${msg}`);
     fetchErrors.push(msg);
 }
 
-// 2b) Buscar pagador en "CF Cobros"
+// 3b) IBAN pagador desde "CF Cobros"
 try {
-    const sheetData = await fetchSheetData(SHEET_PAGADOR);
-    pagadorRow = findRowByIdDeal(sheetData, idDeal, COL_PAGADOR_ID_DEAL);
-    console.log(pagadorRow
-        ? `  ✓ Pagador encontrado en "${SHEET_PAGADOR}"`
-        : `  ✗ Pagador NO encontrado para id_deal="${idDeal}"`);
+    const rows = await fetchSheetData(SHEET_PAGADOR);
+    const row = findRowByIdDeal(rows, idDeal, COL_PAGADOR_ID_DEAL);
+    if (row) {
+        ibanPagadorSheet = normalizeIBAN(cleanCellValue(row[COL_PAGADOR_IBAN]));
+        console.log(`  ✓ IBAN pagador del Sheet: ${ibanPagadorSheet}`);
+    } else {
+        console.log(`  ✗ id_deal="${idDeal}" no encontrado en "${SHEET_PAGADOR}"`);
+    }
 } catch (err) {
-    const msg = `Error leyendo "${SHEET_PAGADOR}": ${err.message}`;
+    const msg = `Error "${SHEET_PAGADOR}": ${err.message}`;
     console.error(`  ${msg}`);
     fetchErrors.push(msg);
 }
@@ -315,8 +326,7 @@ try {
 // Si fallaron AMBAS hojas → Error
 if (fetchErrors.length === 2) {
     const msg = `Error en ambas hojas:\n${fetchErrors.join('\n')}`;
-    console.error(msg);
-    await dealsTable.updateRecordAsync(dealRecordId, {
+    await dealTable.updateRecordAsync(dealRecordId, {
         [FIELD_BUSQUEDA_BANCOS]: { name: 'Error' },
         [FIELD_AVISO_BUSQUEDA]: avisoExistente
             ? avisoExistente + '\n' + `[${formatTimestamp()}] ERROR: ${msg}`
@@ -326,97 +336,82 @@ if (fetchErrors.length === 2) {
 }
 
 // ============================================================================
-// STEP 3: Extraer y normalizar datos
+// STEP 4: Match IBANs del Sheet contra contactos del deal
 // ============================================================================
 
-console.log('\n--- STEP 3: Extrayendo y normalizando datos ---');
+console.log('\n--- STEP 4: Matching IBANs ---');
 
-let pagadorData = null;
-let cobradorData = null;
+let matchPagador = null;   // contacto que matchea como pagador
+let matchCobrador = null;  // contacto que matchea como cobrador
 
-// Extraer datos del pagador
-if (pagadorRow) {
-    const nombre = cleanCellValue(pagadorRow[COL_PAGADOR_NOMBRE]);
-    const ibanRaw = cleanCellValue(pagadorRow[COL_PAGADOR_IBAN]);
-    const iban = normalizeIBAN(ibanRaw);
-    const doc = cleanCellValue(pagadorRow[COL_PAGADOR_DOC]);
-
-    if (iban) {
-        pagadorData = { nombre, iban, ibanRaw, doc };
-        console.log(`  Pagador: ${nombre} | IBAN: ${iban} | Doc: ${doc}`);
-        if (!isValidIBAN(iban)) {
-            console.log(`  ⚠ IBAN pagador formato inválido: "${ibanRaw}" → "${iban}"`);
-        }
+// Buscar pagador: ¿qué contacto tiene el IBAN del pagador del Sheet?
+if (ibanPagadorSheet) {
+    matchPagador = contactos.find(c => c.iban && c.iban === ibanPagadorSheet);
+    if (matchPagador) {
+        console.log(`  ✓ PAGADOR match: ${matchPagador.nombre} (${matchPagador.rol}) — IBAN: ${matchPagador.iban}`);
     } else {
-        console.log(`  ⚠ Fila pagador encontrada pero sin IBAN`);
+        console.log(`  ✗ PAGADOR: ningún contacto tiene IBAN ${ibanPagadorSheet}`);
+        // Log todos los IBANs disponibles para debug
+        console.log(`    IBANs disponibles: ${contactos.map(c => `${c.rol}:${c.iban || 'vacío'}`).join(', ')}`);
     }
+} else {
+    console.log(`  - PAGADOR: sin IBAN del Sheet para buscar`);
 }
 
-// Extraer datos del cobrador
-if (cobradorRow) {
-    const nombre = cleanCellValue(cobradorRow[COL_COBRADOR_NOMBRE]);
-    const ibanRaw = cleanCellValue(cobradorRow[COL_COBRADOR_IBAN]);
-    const iban = normalizeIBAN(ibanRaw);
-    const doc = cleanCellValue(cobradorRow[COL_COBRADOR_DOC]);
-    const bic = cleanCellValue(cobradorRow[COL_COBRADOR_BIC]);
-
-    if (iban) {
-        cobradorData = { nombre, iban, ibanRaw, doc, bic };
-        console.log(`  Cobrador: ${nombre} | IBAN: ${iban} | Doc: ${doc} | BIC: ${bic}`);
-        if (!isValidIBAN(iban)) {
-            console.log(`  ⚠ IBAN cobrador formato inválido: "${ibanRaw}" → "${iban}"`);
-        }
+// Buscar cobrador: ¿qué contacto tiene el IBAN del cobrador del Sheet?
+if (ibanCobradorSheet) {
+    matchCobrador = contactos.find(c => c.iban && c.iban === ibanCobradorSheet);
+    if (matchCobrador) {
+        console.log(`  ✓ COBRADOR match: ${matchCobrador.nombre} (${matchCobrador.rol}) — IBAN: ${matchCobrador.iban}`);
     } else {
-        console.log(`  ⚠ Fila cobrador encontrada pero sin IBAN`);
+        console.log(`  ✗ COBRADOR: ningún contacto tiene IBAN ${ibanCobradorSheet}`);
+        console.log(`    IBANs disponibles: ${contactos.map(c => `${c.rol}:${c.iban || 'vacío'}`).join(', ')}`);
     }
+} else {
+    console.log(`  - COBRADOR: sin IBAN del Sheet para buscar`);
 }
 
 // ============================================================================
-// STEP 4: Actualizar campos del deal en Advancing
+// STEP 5: Actualizar deal con los matches
 // ============================================================================
 
-console.log('\n--- STEP 4: Actualizando deal en Advancing ---');
+console.log('\n--- STEP 5: Actualizando deal ---');
 
 const updateFields = {};
 const auditLines = [];
 
-// Campos del pagador
-if (pagadorData) {
-    updateFields[FIELD_DEAL_PAGADOR_NOMBRE] = pagadorData.nombre || null;
-    updateFields[FIELD_DEAL_PAGADOR_NOMBRE_COMPLETO] = pagadorData.nombre || null;
-    updateFields[FIELD_DEAL_PAGADOR_IBAN] = pagadorData.iban || null;
-    updateFields[FIELD_DEAL_PAGADOR_DOC] = pagadorData.doc || null;
-    updateFields[FIELD_DEAL_PAGADOR_CUENTA] = pagadorData.iban || null;
-    updateFields[FIELD_DEAL_PAGADOR_NOMBRE_COMP2] = pagadorData.nombre || null;
-
-    auditLines.push(`Pagador: ${pagadorData.nombre} (IBAN: ${pagadorData.iban}, Doc: ${pagadorData.doc})`);
-    console.log(`  ✓ Campos pagador actualizados`);
+// Vincular pagador (record link)
+if (matchPagador) {
+    updateFields[FIELD_LINK_PAGADOR] = [{ id: matchPagador.id }];
+    auditLines.push(`Pagador: ${matchPagador.nombre} (${matchPagador.rol}, IBAN: ${matchPagador.iban})`);
+    console.log(`  ✓ linkPagador → ${matchPagador.nombre} (${matchPagador.id})`);
+} else if (ibanPagadorSheet) {
+    auditLines.push(`Pagador: IBAN ${ibanPagadorSheet} del Sheet no coincide con ningún contacto`);
+    console.log(`  ✗ linkPagador no actualizado — sin match`);
 } else {
-    auditLines.push(`Pagador: NO encontrado en hoja "${SHEET_PAGADOR}"`);
-    console.log(`  ✗ Sin datos de pagador`);
+    auditLines.push(`Pagador: id_deal no encontrado en hoja "${SHEET_PAGADOR}"`);
+    console.log(`  ✗ linkPagador no actualizado — sin dato en Sheet`);
 }
 
-// Campos del cobrador
-if (cobradorData) {
-    updateFields[FIELD_DEAL_COBRADOR] = cobradorData.nombre || null;
-    updateFields[FIELD_DEAL_COBRADOR_NOMBRE] = cobradorData.nombre || null;
-    updateFields[FIELD_DEAL_COBRADOR_DOC] = cobradorData.doc || null;
-    updateFields[FIELD_DEAL_COBRADOR_CUENTA] = cobradorData.iban || null;
-    updateFields[FIELD_DEAL_COBRADOR_BIC] = cobradorData.bic || null;
-
-    auditLines.push(`Cobrador: ${cobradorData.nombre} (IBAN: ${cobradorData.iban}, Doc: ${cobradorData.doc}, BIC: ${cobradorData.bic || 'N/A'})`);
-    console.log(`  ✓ Campos cobrador actualizados`);
+// Vincular cobrador (record link)
+if (matchCobrador) {
+    updateFields[FIELD_LINK_COBRADOR] = [{ id: matchCobrador.id }];
+    auditLines.push(`Cobrador: ${matchCobrador.nombre} (${matchCobrador.rol}, IBAN: ${matchCobrador.iban})`);
+    console.log(`  ✓ linkCobrador → ${matchCobrador.nombre} (${matchCobrador.id})`);
+} else if (ibanCobradorSheet) {
+    auditLines.push(`Cobrador: IBAN ${ibanCobradorSheet} del Sheet no coincide con ningún contacto`);
+    console.log(`  ✗ linkCobrador no actualizado — sin match`);
 } else {
-    auditLines.push(`Cobrador: NO encontrado en hoja "${SHEET_COBRADOR}"`);
-    console.log(`  ✗ Sin datos de cobrador`);
+    auditLines.push(`Cobrador: id_deal no encontrado en hoja "${SHEET_COBRADOR}"`);
+    console.log(`  ✗ linkCobrador no actualizado — sin dato en Sheet`);
 }
 
 // Estado final
 let estadoFinal;
-if (pagadorData && cobradorData) {
+if (matchPagador && matchCobrador) {
     estadoFinal = 'Encontrado';
-} else if (pagadorData || cobradorData) {
-    estadoFinal = 'Parcial';
+} else if (!ibanPagadorSheet && !ibanCobradorSheet) {
+    estadoFinal = 'No encontrado';
 } else {
     estadoFinal = 'No encontrado';
 }
@@ -433,7 +428,7 @@ updateFields[FIELD_AVISO_BUSQUEDA] = avisoExistente
     ? avisoExistente + '\n' + auditMsg
     : auditMsg;
 
-await dealsTable.updateRecordAsync(dealRecordId, updateFields);
+await dealTable.updateRecordAsync(dealRecordId, updateFields);
 
 console.log(`\n========================================`);
 console.log(`RESULTADO: ${estadoFinal}`);
