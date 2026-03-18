@@ -45,9 +45,10 @@ Los datos se sincronizan a Bancos, donde desencadenan las automatizaciones exist
 │     → "Transferencia Propietario" → IBAN cobrador   │
 │     → "CF Cobros" → IBAN pagador                    │
 ├─────────────────────────────────────────────────────┤
-│  4. Match IBAN del Sheet vs IBANs de contactos      │
-│     → Normalización: sin espacios/guiones, UPPER    │
-│     → Comparación exacta tras normalizar            │
+│  4. Match contacto (3 niveles de fallback):          │
+│     → 1º IBAN exacto (normalizado)                  │
+│     → 2º Nombre completo fuzzy (sin acentos/guiones)│
+│     → 3º Único contacto con rol esperado            │
 ├─────────────────────────────────────────────────────┤
 │  5. Vincular contacto en linkPagador / linkCobrador │
 │     → Record link → lookups automáticos:            │

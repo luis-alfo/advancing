@@ -57,6 +57,7 @@ const FIELD_CONTACTO_NOMBRE = 'fld9pjRDwkZhflVna';             // nombre
 const FIELD_CONTACTO_CUENTA = 'fldUY0qcYZGBQjuk1';             // numero de cuenta (IBAN)
 const FIELD_CONTACTO_TIPO = 'fldDfGSRXsZggcAlq';               // tipo contacto (select)
 const FIELD_CONTACTO_DOC = 'fldDicT1bmEt0RWha';                // numero documento
+const FIELD_CONTACTO_NOMBRE_COMPLETO = 'fldaH2bcz65kTp1ko';    // nombreYapellidos (formula: nombre + apellidos)
 
 // ============================================================================
 // CONFIGURACIÓN GOOGLE SHEETS
@@ -78,6 +79,11 @@ const HEADER_NUM_OPERACION = 'Nº de Operación';          // Columna para busca
 const HEADER_IBAN_COBRADOR = 'Numero de cuenta';          // Columna IBAN en "Transferencia Propietario"
 const HEADER_IBAN_PAGADOR = 'Nº de cuenta inquilino';     // Columna IBAN en "Altas SEPA"
 
+// Columnas de NOMBRE en Google Sheets (para fallback cuando IBAN no matchea)
+// CONFIGURAR: poner el nombre exacto del cabecero de la columna de nombre en cada hoja
+const HEADER_NOMBRE_PAGADOR = 'Nombre inquilino';          // Columna nombre en "Altas SEPA" — AJUSTAR
+const HEADER_NOMBRE_COBRADOR = 'Nombre propietario';       // Columna nombre en "Transferencia Propietario" — AJUSTAR
+
 // ============================================================================
 // UTILIDADES
 // ============================================================================
@@ -98,6 +104,21 @@ function formatTimestamp() {
 function normalizeIBAN(iban) {
     if (!iban) return '';
     return iban.replace(/[\s\-\.]/g, '').toUpperCase().trim();
+}
+
+/**
+ * Normaliza un nombre para comparación fuzzy:
+ * - Minúsculas, sin acentos, sin guiones, sin espacios extra
+ * Ejemplo: "VÍCTOR HUGO CAICEDO-CAÑAS" → "victor hugo caicedo canas"
+ */
+function normalizeName(name) {
+    if (!name) return '';
+    return name
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // quitar acentos
+        .toLowerCase()
+        .replace(/[\-\.]/g, ' ')                             // guiones y puntos → espacio
+        .replace(/\s+/g, ' ')                                // colapsar espacios
+        .trim();
 }
 
 /**
@@ -270,6 +291,7 @@ for (const c of allContactIds) {
     const rec = await contactosTable.selectRecordAsync(c.id, {
         fields: [
             FIELD_CONTACTO_NOMBRE,
+            FIELD_CONTACTO_NOMBRE_COMPLETO,
             FIELD_CONTACTO_CUENTA,
             FIELD_CONTACTO_TIPO,
             FIELD_CONTACTO_DOC,
@@ -277,6 +299,7 @@ for (const c of allContactIds) {
     });
     if (rec) {
         const nombre = rec.getCellValueAsString(FIELD_CONTACTO_NOMBRE);
+        const nombreCompleto = rec.getCellValueAsString(FIELD_CONTACTO_NOMBRE_COMPLETO) || nombre;
         const ibanRaw = rec.getCellValue(FIELD_CONTACTO_CUENTA) || '';
         const iban = normalizeIBAN(ibanRaw);
         const tipo = rec.getCellValue(FIELD_CONTACTO_TIPO);
@@ -286,12 +309,14 @@ for (const c of allContactIds) {
             id: c.id,
             rol: c.rol,
             nombre,
+            nombreCompleto,
+            nombreNorm: normalizeName(nombreCompleto),
             iban,
             ibanRaw,
             tipo: tipo ? tipo.name : '',
             doc,
         });
-        console.log(`  → ${c.rol}: ${nombre} | IBAN: ${iban || '(vacío)'} | Doc: ${doc}`);
+        console.log(`  → ${c.rol}: ${nombreCompleto} | IBAN: ${iban || '(vacío)'} | Doc: ${doc}`);
     }
 }
 
@@ -303,9 +328,11 @@ console.log('\n--- STEP 3: Obteniendo IBANs de Google Sheets ---');
 
 let ibanPagadorSheet = null;
 let ibanCobradorSheet = null;
+let nombrePagadorSheet = null;
+let nombreCobradorSheet = null;
 let fetchErrors = [];
 
-// 3a) IBAN cobrador desde "Transferencia Propietario"
+// 3a) IBAN + nombre cobrador desde "Transferencia Propietario"
 try {
     const rows = await fetchSheetData(SHEET_COBRADOR);
     const result = findRowByNumOperacion(rows, idDeal);
@@ -317,6 +344,14 @@ try {
             ibanCobradorSheet = normalizeIBAN(cleanCellValue(result.row[ibanColIndex]));
             console.log(`  ✓ IBAN cobrador del Sheet: ${ibanCobradorSheet}`);
         }
+        // Nombre cobrador (para fallback)
+        const nombreColIndex = findColumnIndex(result.headers, HEADER_NOMBRE_COBRADOR);
+        if (nombreColIndex !== -1) {
+            nombreCobradorSheet = cleanCellValue(result.row[nombreColIndex]);
+            console.log(`  ✓ Nombre cobrador del Sheet: ${nombreCobradorSheet}`);
+        } else {
+            console.log(`  - Columna nombre "${HEADER_NOMBRE_COBRADOR}" no encontrada en "${SHEET_COBRADOR}" (fallback nombre no disponible)`);
+        }
     } else {
         console.log(`  ✗ "${HEADER_NUM_OPERACION}"="${idDeal}" no encontrado en "${SHEET_COBRADOR}"`);
     }
@@ -326,7 +361,7 @@ try {
     fetchErrors.push(msg);
 }
 
-// 3b) IBAN pagador desde "CF Cobros"
+// 3b) IBAN + nombre pagador desde "Altas SEPA"
 try {
     const rows = await fetchSheetData(SHEET_PAGADOR);
     const result = findRowByNumOperacion(rows, idDeal);
@@ -337,6 +372,14 @@ try {
         } else {
             ibanPagadorSheet = normalizeIBAN(cleanCellValue(result.row[ibanColIndex]));
             console.log(`  ✓ IBAN pagador del Sheet: ${ibanPagadorSheet}`);
+        }
+        // Nombre pagador (para fallback)
+        const nombreColIndex = findColumnIndex(result.headers, HEADER_NOMBRE_PAGADOR);
+        if (nombreColIndex !== -1) {
+            nombrePagadorSheet = cleanCellValue(result.row[nombreColIndex]);
+            console.log(`  ✓ Nombre pagador del Sheet: ${nombrePagadorSheet}`);
+        } else {
+            console.log(`  - Columna nombre "${HEADER_NOMBRE_PAGADOR}" no encontrada en "${SHEET_PAGADOR}" (fallback nombre no disponible)`);
         }
     } else {
         console.log(`  ✗ "${HEADER_NUM_OPERACION}"="${idDeal}" no encontrado en "${SHEET_PAGADOR}"`);
@@ -360,39 +403,89 @@ if (fetchErrors.length === 2) {
 }
 
 // ============================================================================
-// STEP 4: Match IBANs del Sheet contra contactos del deal
+// STEP 4: Match contactos — IBAN → nombre → rol
 // ============================================================================
 
-console.log('\n--- STEP 4: Matching IBANs ---');
+console.log('\n--- STEP 4: Matching (IBAN → nombre → rol) ---');
 
 let matchPagador = null;   // contacto que matchea como pagador
 let matchCobrador = null;  // contacto que matchea como cobrador
+let matchPagadorVia = '';   // cómo se hizo el match: 'iban', 'nombre', 'rol'
+let matchCobradorVia = '';
 
-// Buscar pagador: ¿qué contacto tiene el IBAN del pagador del Sheet?
-if (ibanPagadorSheet) {
-    matchPagador = contactos.find(c => c.iban && c.iban === ibanPagadorSheet);
-    if (matchPagador) {
-        console.log(`  ✓ PAGADOR match: ${matchPagador.nombre} (${matchPagador.rol}) — IBAN: ${matchPagador.iban}`);
-    } else {
-        console.log(`  ✗ PAGADOR: ningún contacto tiene IBAN ${ibanPagadorSheet}`);
-        // Log todos los IBANs disponibles para debug
-        console.log(`    IBANs disponibles: ${contactos.map(c => `${c.rol}:${c.iban || 'vacío'}`).join(', ')}`);
+/**
+ * Intenta encontrar un contacto en 3 pasos:
+ * 1. Match exacto por IBAN normalizado
+ * 2. Match fuzzy por nombre completo (sin acentos, guiones, mayúsculas)
+ * 3. Match por rol (si solo hay un contacto con ese rol)
+ */
+function findContact(contactos, iban, nombreSheet, rolEsperado) {
+    // 1) IBAN exacto
+    if (iban) {
+        const match = contactos.find(c => c.iban && c.iban === iban);
+        if (match) return { contact: match, via: 'iban' };
     }
-} else {
-    console.log(`  - PAGADOR: sin IBAN del Sheet para buscar`);
+
+    // 2) Nombre fuzzy
+    if (nombreSheet) {
+        const nombreNorm = normalizeName(nombreSheet);
+        if (nombreNorm) {
+            // Match exacto normalizado
+            let match = contactos.find(c => c.nombreNorm && c.nombreNorm === nombreNorm);
+            if (match) return { contact: match, via: 'nombre' };
+
+            // Match parcial: el nombre del Sheet contiene al contacto o viceversa
+            match = contactos.find(c => {
+                if (!c.nombreNorm) return false;
+                return nombreNorm.includes(c.nombreNorm) || c.nombreNorm.includes(nombreNorm);
+            });
+            if (match) return { contact: match, via: 'nombre-parcial' };
+        }
+    }
+
+    // 3) Único contacto con el rol esperado
+    if (rolEsperado) {
+        const candidatos = contactos.filter(c => c.rol === rolEsperado);
+        if (candidatos.length === 1) {
+            return { contact: candidatos[0], via: 'rol' };
+        }
+    }
+
+    return null;
 }
 
-// Buscar cobrador: ¿qué contacto tiene el IBAN del cobrador del Sheet?
-if (ibanCobradorSheet) {
-    matchCobrador = contactos.find(c => c.iban && c.iban === ibanCobradorSheet);
-    if (matchCobrador) {
-        console.log(`  ✓ COBRADOR match: ${matchCobrador.nombre} (${matchCobrador.rol}) — IBAN: ${matchCobrador.iban}`);
+// --- Buscar PAGADOR ---
+if (ibanPagadorSheet || nombrePagadorSheet) {
+    const result = findContact(contactos, ibanPagadorSheet, nombrePagadorSheet, 'inquilino');
+    if (result) {
+        matchPagador = result.contact;
+        matchPagadorVia = result.via;
+        console.log(`  ✓ PAGADOR match (${result.via}): ${matchPagador.nombreCompleto} (${matchPagador.rol}) — IBAN: ${matchPagador.iban || '(vacío)'}`);
     } else {
-        console.log(`  ✗ COBRADOR: ningún contacto tiene IBAN ${ibanCobradorSheet}`);
-        console.log(`    IBANs disponibles: ${contactos.map(c => `${c.rol}:${c.iban || 'vacío'}`).join(', ')}`);
+        console.log(`  ✗ PAGADOR: sin match`);
+        console.log(`    IBAN buscado: ${ibanPagadorSheet || '(sin IBAN)'}`);
+        console.log(`    Nombre buscado: ${nombrePagadorSheet || '(sin nombre)'}`);
+        console.log(`    Contactos: ${contactos.map(c => `${c.rol}:${c.nombreCompleto}:${c.iban || 'sin-IBAN'}`).join(', ')}`);
     }
 } else {
-    console.log(`  - COBRADOR: sin IBAN del Sheet para buscar`);
+    console.log(`  - PAGADOR: sin datos del Sheet para buscar`);
+}
+
+// --- Buscar COBRADOR ---
+if (ibanCobradorSheet || nombreCobradorSheet) {
+    const result = findContact(contactos, ibanCobradorSheet, nombreCobradorSheet, 'propietario');
+    if (result) {
+        matchCobrador = result.contact;
+        matchCobradorVia = result.via;
+        console.log(`  ✓ COBRADOR match (${result.via}): ${matchCobrador.nombreCompleto} (${matchCobrador.rol}) — IBAN: ${matchCobrador.iban || '(vacío)'}`);
+    } else {
+        console.log(`  ✗ COBRADOR: sin match`);
+        console.log(`    IBAN buscado: ${ibanCobradorSheet || '(sin IBAN)'}`);
+        console.log(`    Nombre buscado: ${nombreCobradorSheet || '(sin nombre)'}`);
+        console.log(`    Contactos: ${contactos.map(c => `${c.rol}:${c.nombreCompleto}:${c.iban || 'sin-IBAN'}`).join(', ')}`);
+    }
+} else {
+    console.log(`  - COBRADOR: sin datos del Sheet para buscar`);
 }
 
 // ============================================================================
@@ -407,10 +500,10 @@ const auditLines = [];
 // Vincular pagador (record link)
 if (matchPagador) {
     updateFields[FIELD_LINK_PAGADOR] = [{ id: matchPagador.id }];
-    auditLines.push(`Pagador: ${matchPagador.nombre} (${matchPagador.rol}, IBAN: ${matchPagador.iban})`);
-    console.log(`  ✓ linkPagador → ${matchPagador.nombre} (${matchPagador.id})`);
-} else if (ibanPagadorSheet) {
-    auditLines.push(`Pagador: IBAN ${ibanPagadorSheet} del Sheet no coincide con ningún contacto`);
+    auditLines.push(`Pagador: ${matchPagador.nombreCompleto} (${matchPagador.rol}, match: ${matchPagadorVia}, IBAN: ${matchPagador.iban || 'sin IBAN'})`);
+    console.log(`  ✓ linkPagador → ${matchPagador.nombreCompleto} (${matchPagador.id})`);
+} else if (ibanPagadorSheet || nombrePagadorSheet) {
+    auditLines.push(`Pagador: IBAN ${ibanPagadorSheet || 'N/A'} / nombre "${nombrePagadorSheet || 'N/A'}" del Sheet no coincide con ningún contacto`);
     console.log(`  ✗ linkPagador no actualizado — sin match`);
 } else {
     auditLines.push(`Pagador: id_deal no encontrado en hoja "${SHEET_PAGADOR}"`);
@@ -420,10 +513,10 @@ if (matchPagador) {
 // Vincular cobrador (record link)
 if (matchCobrador) {
     updateFields[FIELD_LINK_COBRADOR] = [{ id: matchCobrador.id }];
-    auditLines.push(`Cobrador: ${matchCobrador.nombre} (${matchCobrador.rol}, IBAN: ${matchCobrador.iban})`);
-    console.log(`  ✓ linkCobrador → ${matchCobrador.nombre} (${matchCobrador.id})`);
-} else if (ibanCobradorSheet) {
-    auditLines.push(`Cobrador: IBAN ${ibanCobradorSheet} del Sheet no coincide con ningún contacto`);
+    auditLines.push(`Cobrador: ${matchCobrador.nombreCompleto} (${matchCobrador.rol}, match: ${matchCobradorVia}, IBAN: ${matchCobrador.iban || 'sin IBAN'})`);
+    console.log(`  ✓ linkCobrador → ${matchCobrador.nombreCompleto} (${matchCobrador.id})`);
+} else if (ibanCobradorSheet || nombreCobradorSheet) {
+    auditLines.push(`Cobrador: IBAN ${ibanCobradorSheet || 'N/A'} / nombre "${nombreCobradorSheet || 'N/A'}" del Sheet no coincide con ningún contacto`);
     console.log(`  ✗ linkCobrador no actualizado — sin match`);
 } else {
     auditLines.push(`Cobrador: id_deal no encontrado en hoja "${SHEET_COBRADOR}"`);
@@ -434,8 +527,6 @@ if (matchCobrador) {
 let estadoFinal;
 if (matchPagador && matchCobrador) {
     estadoFinal = 'Encontrado';
-} else if (!ibanPagadorSheet && !ibanCobradorSheet) {
-    estadoFinal = 'No encontrado';
 } else {
     estadoFinal = 'No encontrado';
 }
