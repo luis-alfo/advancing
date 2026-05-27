@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Investigación · Experian Consumer Credit Profile API</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1d212b;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #4f8cff;
+    --accent-2: #7c5cff;
+    --green: #2ecc71;
+    --amber: #f0a020;
+    --red: #ff5d5d;
+    --border: #272c38;
+    --code-bg: #0b0d12;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  .layout { display: flex; max-width: 1200px; margin: 0 auto; }
+  nav {
+    position: sticky; top: 0; align-self: flex-start;
+    width: 240px; height: 100vh; overflow-y: auto;
+    padding: 24px 16px; border-right: 1px solid var(--border);
+    font-size: 14px;
+  }
+  nav h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+  nav a:hover { color: var(--text); background: var(--panel-2); }
+  main { flex: 1; padding: 40px 48px; min-width: 0; }
+  header.hero { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 28px; }
+  header.hero p { color: var(--muted); margin: 4px 0; }
+  .pill { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-right: 6px; }
+  section { margin-bottom: 44px; scroll-margin-top: 20px; }
+  h2.section { font-size: 22px; border-left: 3px solid var(--accent); padding-left: 12px; margin: 0 0 16px; }
+  h3 { font-size: 17px; margin: 24px 0 8px; }
+  p, li { color: var(--text); }
+  code { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  p code, li code, td code { background: var(--panel-2); padding: 1px 6px; border-radius: 5px; color: #c9d4ff; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  pre code { color: #d6deeb; }
+  .tag { color: var(--accent); }
+  .str { color: #addb67; }
+  .key { color: #82aaff; }
+  .num { color: #f78c6c; }
+  .cm { color: #637777; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .req { color: var(--red); font-weight: 600; }
+  .opt { color: var(--muted); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 14px 0; }
+  .note { border-left: 3px solid var(--accent); }
+  .warn { border-left: 3px solid var(--amber); }
+  .danger { border-left: 3px solid var(--red); }
+  .ok { border-left: 3px solid var(--green); }
+  .method { display: inline-block; font-weight: 700; font-size: 12px; padding: 3px 8px; border-radius: 6px; margin-right: 8px; }
+  .post { background: rgba(46,204,113,.15); color: var(--green); border: 1px solid rgba(46,204,113,.4); }
+  .get { background: rgba(79,140,255,.15); color: var(--accent); border: 1px solid rgba(79,140,255,.4); }
+  .path { font-family: "SF Mono", Menlo, monospace; font-size: 14px; color: #c9d4ff; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .muted { color: var(--muted); }
+  footer { border-top: 1px solid var(--border); margin-top: 40px; padding-top: 20px; font-size: 13px; color: var(--muted); }
+  a.link { color: var(--accent); }
+  .flow { counter-reset: step; padding-left: 0; list-style: none; }
+  .flow li { position: relative; padding: 6px 0 6px 38px; }
+  .flow li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 6px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff; text-align: center; line-height: 24px; font-size: 13px; font-weight: 700;
+  }
+  @media (max-width: 860px) { nav { display: none; } main { padding: 24px; } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h2>Índice</h2>
+    <a href="#resumen">1. Resumen</a>
+    <a href="#concepto">2. Qué es / casos de uso</a>
+    <a href="#acceso">3. Requisitos de acceso</a>
+    <a href="#auth">4. Autenticación OAuth 2.0</a>
+    <a href="#endpoint">5. Endpoint CreditReports</a>
+    <a href="#request">6. Estructura del request</a>
+    <a href="#response">7. Estructura del response</a>
+    <a href="#sandbox">8. Sandbox y datos de prueba</a>
+    <a href="#errores">9. Errores y límites</a>
+    <a href="#cumplimiento">10. Cumplimiento (FCRA)</a>
+    <a href="#encaje">11. Encaje con el proyecto</a>
+    <a href="#fuentes">12. Fuentes</a>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <h1>Experian · Consumer Credit Profile API</h1>
+      <p>Documento de investigación técnica — endpoints, autenticación y ejemplos de llamadas REST.</p>
+      <p>
+        <span class="pill">Mercado: US</span>
+        <span class="pill">REST / JSON</span>
+        <span class="pill">OAuth 2.0</span>
+        <span class="pill">Datos regulados (FCRA)</span>
+      </p>
+      <p class="muted">Fecha: 2026-05-27 · Producto: <code>Consumer Credit Profile</code> · Operación principal: <code>CreditReports</code></p>
+    </header>
+
+    <!-- 1 -->
+    <section id="resumen">
+      <h2 class="section">1. Resumen ejecutivo</h2>
+      <p>
+        La <strong>Consumer Credit Profile API</strong> de Experian permite obtener, en tiempo real, el
+        <strong>informe de crédito de un consumidor</strong> de Estados Unidos a partir de sus datos personales
+        (nombre, dirección, SSN, fecha de nacimiento). Devuelve un JSON con líneas de crédito (<em>tradelines</em>),
+        registros públicos, consultas previas (<em>inquiries</em>), alertas de fraude y <strong>modelos de score</strong>
+        (FICO, VantageScore, etc.).
+      </p>
+      <div class="card note">
+        <strong>Lo esencial en 4 puntos:</strong>
+        <ul>
+          <li><strong>Auth:</strong> OAuth 2.0 (token Bearer válido 30 min) contra <code>/oauth2/v1/token</code>.</li>
+          <li><strong>Llamada:</strong> <code>POST /consumerservices/credit-profile/v2/credit-report</code> con el PII en el body.</li>
+          <li><strong>Sandbox:</strong> autoservicio con datos de prueba estáticos; producción requiere contrato.</li>
+          <li><strong>Regulación:</strong> sujeta a la FCRA — necesitas un <em>permissible purpose</em> y un <em>subscriber code</em>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="concepto">
+      <h2 class="section">2. Qué es y casos de uso</h2>
+      <p>Es un servicio de <em>credit bureau</em> orientado a decisiones de riesgo. Casos típicos:</p>
+      <ul>
+        <li><strong>Originación de crédito / préstamos:</strong> evaluar solvencia antes de aprobar.</li>
+        <li><strong>Onboarding y verificación de identidad</strong> (combinado con Precise ID / KBA).</li>
+        <li><strong>Pre-aprobaciones y account review.</strong></li>
+        <li><strong>Screening de inquilinos</strong> (con <code>renterRiskScore</code>).</li>
+      </ul>
+      <p class="muted">
+        Experian agrupa varios servicios relacionados bajo el mismo portal: informes de crédito de consumidor,
+        Precise ID (fraude/identidad), KIQ/KBA (preguntas de conocimiento) e Intelliscore+ (crédito de empresas).
+      </p>
+    </section>
+
+    <!-- 3 -->
+    <section id="acceso">
+      <h2 class="section">3. Requisitos de acceso</h2>
+      <ol class="flow">
+        <li>Crear una cuenta en el <a class="link" href="https://developer.experian.com/get-started">Experian Global Developer Portal</a> y verificar el email.</li>
+        <li>En <strong>My Apps → Add New App</strong>, registrar una aplicación y seleccionar el producto <em>Consumer Credit Profile</em>. Esto genera tu <code>client_id</code> y <code>client_secret</code>.</li>
+        <li>Probar contra el <strong>sandbox</strong> con datos de prueba (autoservicio).</li>
+        <li>Para <strong>UAT y producción</strong>: suscripción comercial + verificación manual + asignación de un <code>subscriberCode</code>.</li>
+      </ol>
+      <div class="card warn">
+        <strong>Importante:</strong> el sandbox es abierto para experimentar, pero el acceso a datos reales
+        está controlado contractualmente. No es una API pública de autoservicio para producción.
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="auth">
+      <h2 class="section">4. Autenticación — OAuth 2.0</h2>
+      <p>
+        Flujo tipo <em>password / two-legged</em>. Se obtiene un <code>access_token</code> (JWT Bearer) que se envía
+        en cada llamada posterior.
+      </p>
+
+      <h3>4.1 Obtener el token</h3>
+      <p><span class="method post">POST</span><span class="path">https://sandbox-us-api.experian.com/oauth2/v1/token</span></p>
+<pre><code><span class="key">curl</span> -X POST https://sandbox-us-api.experian.com/oauth2/v1/token \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"Accept: application/json"</span> \
+  -d <span class="str">'{
+    "client_id":     "TU_CLIENT_ID",
+    "client_secret": "TU_CLIENT_SECRET",
+    "username":      "tu_usuario_portal",
+    "password":      "tu_password_portal"
+  }'</span></code></pre>
+
+      <h3>4.2 Respuesta del token</h3>
+<pre><code>{
+  <span class="key">"issued_at"</span>:     <span class="str">"1716800000000"</span>,
+  <span class="key">"expires_in"</span>:    <span class="str">"1800"</span>,           <span class="cm">// 30 minutos</span>
+  <span class="key">"token_type"</span>:    <span class="str">"Bearer"</span>,
+  <span class="key">"refresh_token"</span>: <span class="str">"&lt;refresh_jwt&gt;"</span>,     <span class="cm">// válido 24 h</span>
+  <span class="key">"access_token"</span>:  <span class="str">"&lt;access_jwt&gt;"</span>
+}</code></pre>
+
+      <table>
+        <tr><th>Campo</th><th>Descripción</th></tr>
+        <tr><td><code>access_token</code></td><td>JWT Bearer. Se usa en <code>Authorization: Bearer …</code>. Vence en 30 min.</td></tr>
+        <tr><td><code>refresh_token</code></td><td>Permite renovar el access token sin re-enviar credenciales. Vence en 24 h.</td></tr>
+        <tr><td><code>expires_in</code></td><td>Segundos hasta expiración (1800).</td></tr>
+      </table>
+
+      <h3>4.3 Endpoints auxiliares de OAuth</h3>
+      <table>
+        <tr><th>Operación</th><th>Endpoint</th></tr>
+        <tr><td>OpenID config</td><td><code>GET /.well-known/openid-configuration</code></td></tr>
+        <tr><td>Claves JWKS</td><td><code>GET /oauth2/v1/keys</code></td></tr>
+        <tr><td>Revocar token</td><td><code>POST /oauth2/v1/revokeToken</code></td></tr>
+      </table>
+    </section>
+
+    <!-- 5 -->
+    <section id="endpoint">
+      <h2 class="section">5. Endpoint — CreditReports</h2>
+      <p><span class="method post">POST</span><span class="path">https://sandbox-us-api.experian.com/consumerservices/credit-profile/v2/credit-report</span></p>
+      <table>
+        <tr><th>Aspecto</th><th>Valor</th></tr>
+        <tr><td>Método</td><td><code>POST</code></td></tr>
+        <tr><td>Base URL (sandbox US)</td><td><code>https://sandbox-us-api.experian.com</code></td></tr>
+        <tr><td>Base URL (producción US)</td><td><code>https://us-api.experian.com</code></td></tr>
+        <tr><td>Headers obligatorios</td><td><code>Content-Type: application/json</code><br><code>Authorization: Bearer &lt;access_token&gt;</code></td></tr>
+        <tr><td>Cuerpo</td><td>JSON con <code>consumerPii</code>, <code>requestor</code>, <code>permissiblePurpose</code> y <code>addOns</code></td></tr>
+      </table>
+      <div class="card note">
+        Existen variantes regionales del host: <code>sandbox-uk-api</code>, <code>sandbox-eu-api</code> (EMEA),
+        <code>sandbox-api.experian.com.sg</code>, <code>.com.au</code>, <code>sandbox-in-api</code>. Este producto es del mercado <strong>US</strong>.
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="request">
+      <h2 class="section">6. Estructura del request</h2>
+      <p>Ejemplo de llamada completa (sandbox) con datos de prueba:</p>
+<pre><code><span class="key">curl</span> -X POST https://sandbox-us-api.experian.com/consumerservices/credit-profile/v2/credit-report \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"Authorization: Bearer $ACCESS_TOKEN"</span> \
+  -d <span class="str">'{
+    "consumerPii": {
+      "primaryApplicant": {
+        "name": { "lastName": "YCSWL", "firstName": "ASAD", "middleName": "", "generationCode": "" },
+        "dob":  { "dob": "1985" },
+        "ssn":  { "ssn": "666455730" },
+        "currentAddress": {
+          "line1": "9817 LOOP BLVD",
+          "line2": "APT G",
+          "city":  "CALIFORNIA CITY",
+          "state": "CA",
+          "zipCode": "935051352"
+        }
+      }
+    },
+    "requestor": {
+      "subscriberCode": "2222222"
+    },
+    "permissiblePurpose": {
+      "type": "08"
+    },
+    "addOns": {
+      "directCheck": "",
+      "demographics": "Only Phone",
+      "riskModels": { "modelIndicator": ["V4", "FICO"] },
+      "summaries":  { "summaryType": ["Profile Summary"] },
+      "fraudShield": "Y"
+    }
+  }'</span></code></pre>
+
+      <h3>6.1 Campos principales</h3>
+      <table>
+        <tr><th>Campo</th><th>Oblig.</th><th>Descripción</th></tr>
+        <tr><td><code>consumerPii.primaryApplicant.name</code></td><td class="req">sí</td><td><code>firstName</code>, <code>lastName</code> (req.), <code>middleName</code>, <code>generationCode</code> (Jr/Sr/III…).</td></tr>
+        <tr><td><code>consumerPii…currentAddress</code></td><td class="req">sí</td><td><code>line1</code>, <code>city</code>, <code>state</code> (2 letras), <code>zipCode</code>.</td></tr>
+        <tr><td><code>consumerPii…ssn</code></td><td class="opt">recom.</td><td>Número de la Seguridad Social (mejora la coincidencia / hit rate).</td></tr>
+        <tr><td><code>consumerPii…dob</code></td><td class="opt">opc.</td><td>Fecha de nacimiento.</td></tr>
+        <tr><td><code>requestor.subscriberCode</code></td><td class="req">sí</td><td>Código de suscriptor asignado por Experian (identifica al cliente facturable).</td></tr>
+        <tr><td><code>permissiblePurpose.type</code></td><td class="req">sí</td><td>Código del <em>permissible purpose</em> bajo la FCRA (p. ej. <code>08</code> = revisión de cuenta, <code>3F</code>, etc.).</td></tr>
+        <tr><td><code>addOns</code></td><td class="opt">opc.</td><td>Selecciona scores y secciones extra: <code>riskModels</code>, <code>summaries</code>, <code>demographics</code>, <code>fraudShield</code>, <code>clarityData</code>, <code>renterRiskScore</code>, <code>liftPremium</code>, etc.</td></tr>
+      </table>
+
+      <h3>6.2 Equivalente como petición HTTP cruda</h3>
+<pre><code><span class="tag">POST</span> /consumerservices/credit-profile/v2/credit-report HTTP/1.1
+<span class="key">Host</span>: sandbox-us-api.experian.com
+<span class="key">Content-Type</span>: application/json
+<span class="key">Authorization</span>: Bearer &lt;access_token&gt;
+
+{ "consumerPii": { ... }, "requestor": { ... }, "permissiblePurpose": { ... } }</code></pre>
+      <p class="muted">Nota: la estructura anidada (<code>consumerPii.primaryApplicant.*</code>) corresponde al esquema oficial v2. Algunos revendedores exponen un esquema plano (<code>firstName</code>, <code>ssn</code>, <code>street1</code>…) sobre el mismo backend.</p>
+    </section>
+
+    <!-- 7 -->
+    <section id="response">
+      <h2 class="section">7. Estructura del response</h2>
+      <p>El response es un JSON con múltiples secciones. Esquema simplificado:</p>
+<pre><code>{
+  <span class="key">"creditProfile"</span>: [{
+    <span class="key">"riskModel"</span>: [{                <span class="cm">// scores: FICO, VantageScore...</span>
+      <span class="key">"modelIndicator"</span>: <span class="str">"V4"</span>,
+      <span class="key">"score"</span>: <span class="str">"0712"</span>,
+      <span class="key">"scoreFactors"</span>: [ { "importance": "1", "code": "..." } ]
+    }],
+    <span class="key">"tradeline"</span>: [{               <span class="cm">// cuentas de crédito</span>
+      <span class="key">"subscriberName"</span>: <span class="str">"CAPITAL ONE"</span>,
+      <span class="key">"accountType"</span>: <span class="str">"07"</span>,
+      <span class="key">"balanceAmount"</span>: <span class="str">"001500"</span>,
+      <span class="key">"openDate"</span>: <span class="str">"01012020"</span>,
+      <span class="key">"status"</span>: <span class="str">"11"</span>
+    }],
+    <span class="key">"inquiry"</span>: [ ... ],            <span class="cm">// consultas previas</span>
+    <span class="key">"publicRecord"</span>: [ ... ],       <span class="cm">// quiebras, embargos...</span>
+    <span class="key">"statement"</span>: [ ... ],          <span class="cm">// declaraciones del consumidor</span>
+    <span class="key">"fraudShield"</span>: [ ... ],        <span class="cm">// indicadores de fraude</span>
+    <span class="key">"informationalMessage"</span>: [ ... ],
+    <span class="key">"summaries"</span>: [ ... ]            <span class="cm">// resúmenes agregados</span>
+  }]
+}</code></pre>
+      <table>
+        <tr><th>Sección</th><th>Contenido</th></tr>
+        <tr><td><code>riskModel</code></td><td>Score(s) y factores de riesgo asociados.</td></tr>
+        <tr><td><code>tradeline</code></td><td>Cuentas: tipo, saldo, límite, historial de pagos, fechas, estado.</td></tr>
+        <tr><td><code>inquiry</code></td><td>Consultas de crédito previas (hard/soft).</td></tr>
+        <tr><td><code>publicRecord</code></td><td>Registros públicos negativos (quiebras, gravámenes).</td></tr>
+        <tr><td><code>fraudShield</code></td><td>Alertas de fraude e inconsistencias.</td></tr>
+        <tr><td><code>summaries</code></td><td>Métricas agregadas (nº de cuentas, deuda total, etc.).</td></tr>
+      </table>
+      <p class="muted">Opcionalmente, el response del paso inicial devuelve un <code>RequestID</code> que permite recuperar el informe en <strong>PDF</strong> mediante un endpoint secundario (<code>custom-credit-report/pdf/{requestId}</code>).</p>
+    </section>
+
+    <!-- 8 -->
+    <section id="sandbox">
+      <h2 class="section">8. Sandbox y datos de prueba</h2>
+      <div class="card ok">
+        El sandbox responde con <strong>datos estáticos</strong>: ciertas combinaciones de PII de prueba
+        devuelven informes predefinidos. No se consulta crédito real.
+      </div>
+      <p>Ejemplo de identidad de prueba habitual en sandbox:</p>
+<pre><code><span class="key">firstName</span>: ASAD          <span class="key">lastName</span>: YCSWL
+<span class="key">ssn</span>:       666455730     <span class="cm">// SSN ficticio (rango 666-** reservado para test)</span>
+<span class="key">street1</span>:   9817 LOOP BLVD APT G
+<span class="key">city</span>:      CALIFORNIA CITY   <span class="key">state</span>: CA   <span class="key">zip</span>: 935051352</code></pre>
+      <p class="muted">Los valores exactos de prueba aparecen en la documentación del producto tras iniciar sesión en el portal. Cada producto tiene su propio set de datos de prueba.</p>
+    </section>
+
+    <!-- 9 -->
+    <section id="errores">
+      <h2 class="section">9. Errores y límites</h2>
+      <table>
+        <tr><th>Código</th><th>Significado típico</th></tr>
+        <tr><td><code>401 Unauthorized</code></td><td>Token ausente, inválido o expirado (recuerda: 30 min).</td></tr>
+        <tr><td><code>400 Bad Request</code></td><td>PII incompleto o formato inválido (faltan <code>state</code>/<code>zip</code>, SSN mal formado…).</td></tr>
+        <tr><td><code>403 Forbidden</code></td><td><code>subscriberCode</code> o <code>permissiblePurpose</code> no autorizado para el producto.</td></tr>
+        <tr><td><code>429 Too Many Requests</code></td><td>Rate limiting.</td></tr>
+        <tr><td><code>5xx</code></td><td>Error del servidor; reintentar con backoff.</td></tr>
+      </table>
+      <p class="muted">Las respuestas de error incluyen un cuerpo JSON con <code>errors[]</code> describiendo el problema. El token caduca a los 30 min: implementa renovación con <code>refresh_token</code>.</p>
+    </section>
+
+    <!-- 10 -->
+    <section id="cumplimiento">
+      <h2 class="section">10. Cumplimiento — FCRA</h2>
+      <div class="card danger">
+        <strong>Crítico:</strong> consultar el crédito de una persona en EE. UU. está regulado por la
+        <strong>Fair Credit Reporting Act (FCRA)</strong>. No puedes hacerlo sin base legal.
+      </div>
+      <ul>
+        <li><strong>Permissible purpose:</strong> debes declarar un propósito legítimo (<code>permissiblePurpose.type</code>): solicitud de crédito, revisión de cuenta, empleo (con consentimiento), alquiler, etc.</li>
+        <li><strong>Consentimiento:</strong> en la mayoría de casos necesitas autorización explícita del consumidor.</li>
+        <li><strong>Subscriber agreement:</strong> Experian exige un contrato y, a menudo, una inspección física del negocio antes de habilitar producción.</li>
+        <li><strong>Datos sensibles (SSN/PII):</strong> obligaciones de cifrado en tránsito y reposo, minimización, retención limitada y auditoría.</li>
+      </ul>
+    </section>
+
+    <!-- 11 -->
+    <section id="encaje">
+      <h2 class="section">11. Encaje con este proyecto</h2>
+      <div class="card warn">
+        Este repositorio (<code>conciliacion-bancaria</code>) trata reconciliación de movimientos bancarios,
+        aparentemente en contexto europeo (EUR). La Consumer Credit Profile API es un producto
+        <strong>US-céntrico</strong> de bureau de crédito.
+      </div>
+      <p><strong>Preguntas a resolver antes de integrar:</strong></p>
+      <ul>
+        <li>¿El caso de uso es de consumidores estadounidenses? Si el negocio es en España/UE, probablemente quieras un bureau europeo (Experian España, Equifax, ASNEF/Experian, etc.) en lugar de este producto US.</li>
+        <li>¿Hay un <em>permissible purpose</em> y consentimiento claros?</li>
+        <li>¿Existe presupuesto/contrato? Producción no es autoservicio.</li>
+      </ul>
+      <p class="muted">Para una prueba de concepto, el <strong>sandbox</strong> es gratuito y suficiente para validar la integración técnica (OAuth + llamada al endpoint) sin datos reales.</p>
+    </section>
+
+    <!-- 12 -->
+    <section id="fuentes">
+      <h2 class="section">12. Fuentes</h2>
+      <ul>
+        <li><a class="link" href="https://developer.experian.com/products/us/consumer-credit-profile/consumer-credit-profile-api-docs">Consumer Credit Profile API docs (oficial)</a></li>
+        <li><a class="link" href="https://developer.experian.com/tutorials/oauth-20-tutorial">OAuth 2.0 tutorial (oficial)</a></li>
+        <li><a class="link" href="https://developer.experian.com/tutorials/quick-start-guide">Quick start guide (oficial)</a></li>
+        <li><a class="link" href="https://developer.experian.com/products/us/consumer-credit-profile">Consumer Credit Profile (oficial)</a></li>
+        <li><a class="link" href="https://crscreditapi.redoc.ly/openapi/reference/tag/Experian/">CRS Credit API — referencia OpenAPI (revendedor)</a></li>
+        <li><a class="link" href="https://documentation.decisions.com/docs/experianservices">Decisions — Experian Module (esquema de request)</a></li>
+        <li><a class="link" href="https://stg1-connect.experian.com/api/doc/credit-profile.html">Experian Connect API — credit profile</a></li>
+      </ul>
+      <div class="card note">
+        <strong>Nota de fiabilidad:</strong> la documentación oficial detallada (esquemas exactos, set de datos de prueba)
+        está tras login y es muy dependiente de JavaScript, por lo que parte del detalle de campos se ha contrastado con
+        specs de revendedores e integradores. Los <em>endpoints, hosts y flujo OAuth</em> proceden de la documentación oficial.
+        Confirma los nombres exactos de campos en el portal antes de implementar producción.
+      </div>
+    </section>
+
+    <footer>
+      Documento generado como investigación técnica · No incluye credenciales reales · Datos de PII mostrados son ficticios de sandbox.
+    </footer>
+  </main>
+</div>
+</body>
+</html>
