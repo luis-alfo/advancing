@@ -1,0 +1,15 @@
+node_modules/
+.tmp/
+dist/
+*.log
+.DS_Store
+
+# API key del CLI (set-api-key --location app la guarda aquí) → NUNCA commitear.
+.airtableblocksrc.json
+
+# .block/ contiene remote.json (blockId, no secreto) — recreable desde CLAUDE.md.
+.block/
+
+# Preview local (bundle generado)
+preview/preview.bundle.js
+preview/preview.bundle.js.map

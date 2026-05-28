@@ -1,0 +1,446 @@
+{
+  "id": "recdEihfmaTqj2clC",
+  "createdTime": "2026-05-28T10:40:25.000Z",
+  "fields": {
+    "2HtoHubspot": 0,
+    "idEmpleadoHubspot": [
+      "298071160"
+    ],
+    "fecha vencimiento": "Falta fecha inicio",
+    "indexBusqueda": "  Av Maestro Rodrigo 45 Es: 6, Pl: 5, Pt: C  12 60685015928",
+    "fechaCierre": "2026-05-28",
+    "tipo contrato": "NUEVO",
+    "comisionProductoTemporalAcordadaConAgencia": [
+      0.06
+    ],
+    "mesesParaFin": "Otros",
+    "statusExtension": "1. Potencial extensión",
+    "fechaInicioSiguienteContrato": {
+      "error": "#ERROR!"
+    },
+    "fechaCreacionHubspot": "2026-05-28T10:40:40.210Z",
+    "webhookCrearMinionSEPA": "https://hook.eu1.make.com/v8qxt05xswbmcvrqyufpquj4gp76bja6?recordID=recdEihfmaTqj2clC&tipoDoc=sepa&prop=1&inq=2&ava=0&producto=mes%20a%20mes",
+    "nombre agencia": [
+      "GIOR REAL ESTATE SLU"
+    ],
+    "hasFolder": "No",
+    "enviarSoloAdenda": "https://hook.eu1.make.com/emoqumg35aqy9dvgu6zb6dyomhntdktu?value=recdEihfmaTqj2clC&document=adenda",
+    "status fase LOPD": "Pendiente",
+    "email inquilino": [
+      "vitaliiyev@gmail.com",
+      "olha.yev@gmail.com"
+    ],
+    "monthUltimaModificacion": {
+      "specialValue": "NaN"
+    },
+    "linkPeriodosCierre": [
+      "rec3bJPKBy7Uldzh0",
+      "recgmcJ5vy6hiIiOi"
+    ],
+    "fechaCierreMes": 5,
+    "DNI inquilino tipo": [
+      "NIE",
+      "NIE"
+    ],
+    "webhookVinculos": "https://hook.eu1.make.com/8zu1xypzks1g9iygq5e92j6zsm10jgqd?idHubspotDeal=60685015928",
+    "statusHistory": "[{\"statusEntry\":\"4. LOPD\",\"dateEntry\":\"28/05/2026 12:40\",\"modifiedBy\":\"Jordi Aymerich\"}]\n",
+    "razon social propietario": [
+      "persona"
+    ],
+    "formInquilinoPrefilled": "https://airtable.com/shrm5G0badNU0YIZq?prefill_tipo%20contacto=inquilino&prefill_inmueblelink=rectPVfi29QmLiDQd&prefill_inquilino_deal=recdEihfmaTqj2clC",
+    "status datos / documentación": "Pendiente",
+    "boton deal historico": {
+      "label": "CREAR HISTORICO",
+      "url": "https://hook.eu1.make.com/9qdpkqf2wtdt4pz76gf7cpg2r35xtzr2?value=recdEihfmaTqj2clC"
+    },
+    "diferenciaCreacionDeDrive": {
+      "specialValue": "NaN"
+    },
+    "fecha fin": {
+      "error": "#ERROR!"
+    },
+    "comision agencia aplicable (txt)": "Acordada con agencia",
+    "linkAgenciaRecordID": [
+      "recna4wTUeDd9Wbmf"
+    ],
+    "id_empleadolink": [
+      "recssv4Bg8hpdS2D2"
+    ],
+    "stageHubspotSWITCH": "75717905",
+    "statusAplicable": "4. LOPD",
+    "fechaFinAño": {
+      "error": "#ERROR!"
+    },
+    "webhookHojaControl": "https://hook.eu1.make.com/bcabdm19e9mfbehiqs9i1pfcjy7ykicl?idDeal=60685015928&idAirtable=recdEihfmaTqj2clC",
+    "nombre inquilino": [
+      "Vitalii",
+      "Olha"
+    ],
+    "webhookEnviarMinionContratoArrendamiento": "https://hook.eu1.make.com/cohlqfdai3b40eyywrcxo4wdeho89wwn?tipoDoc=arrendamiento&recordID=recdEihfmaTqj2clC&canal=&uuid=",
+    "mesesExtension": 12,
+    "linkAgencia": [
+      "recna4wTUeDd9Wbmf"
+    ],
+    "comision agencia - renovacion 12 meses": [
+      0.01
+    ],
+    "linkToItSelf": [
+      "recdEihfmaTqj2clC"
+    ],
+    "fechaModificacionStatusContrato": "2026-05-28T10:40:25.000Z",
+    "checkDatosDeal": "Faltan datos en deal: Fecha firma Fecha inicio Día Pago a prop Falta indicar pagador",
+    "fechaFinMes": {
+      "error": "#ERROR!"
+    },
+    "driveFolderAgenciaStatus (from linkAgencia)": [
+      "Error"
+    ],
+    "enviarSoloContrato": "https://hook.eu1.make.com/emoqumg35aqy9dvgu6zb6dyomhntdktu?value=recdEihfmaTqj2clC&document=contrato",
+    "comision agencia aplicable (IFTT)": [
+      0.01
+    ],
+    "LOPD propietario VALIDAR": [
+      "Revisar"
+    ],
+    "nombre empleado": [
+      "Jordi Aymerich Torregrosa"
+    ],
+    "linkAgenciaComisionProducto12mesesAcordada": [
+      0.12
+    ],
+    "CheckDatosPropietario": "Faltan datos en propietario ():Nombre Apellidos Mail Nacionalidad Numero documento Telefono revisión LOPD Experian Mitek",
+    "comision producto aplicable": 0.06,
+    "IVAAplicaText": "Sí",
+    "comision agencia resultante (por defecto)": [
+      0.01
+    ],
+    "tipoExtension": "Cambio de inquilino con extensión sin carencia",
+    "IVAaplica (from id_inmueble)": [
+      1
+    ],
+    "enviarSoloSEPA": "https://hook.eu1.make.com/emoqumg35aqy9dvgu6zb6dyomhntdktu?value=recdEihfmaTqj2clC&document=sepa",
+    "countEmpleados": 1,
+    "folderName": "GIOR REAL ESTATE SLU   Av Maestro Rodrigo 45 Es: 6, Pl: 5, Pt: C",
+    "gestionCobroBoolean": "Sí",
+    "ComisionProductoAcordada (if producto)": 0.06,
+    "fechaFinOrigen": {
+      "error": "#ERROR!"
+    },
+    "id_propietariolink": [
+      "recXo609ytG0l0Rvr"
+    ],
+    "urlHojaControlAllData": "https://docs.google.com/spreadsheets/d/1oyr2wey58dql4fALmQsgiGZsrJ5tei4zkQmZrQcR4kQ/edit#gid=1580506920&range=N",
+    "contrato ADENDA STATUS select": "no creado",
+    "fechaInicioAño": {
+      "specialValue": "NaN"
+    },
+    "IVAdeAlquiler": 364.46280991735534,
+    "linkInquilinoKYCExperianSelect": [
+      "Pendiente",
+      "Pendiente"
+    ],
+    "fuenteCreacionEnGestor": "Creación en gestor",
+    "CONTRATOARRENDAMIENTO1": 1,
+    "idHubspotCompanyDeAgencia": [
+      "16632290573"
+    ],
+    "status fase contrato": "Pendiente",
+    "webhookEnviarMinionSEPA": "https://hook.eu1.make.com/cohlqfdai3b40eyywrcxo4wdeho89wwn?tipoDoc=sepa&recordID=recdEihfmaTqj2clC&canal=&uuid=",
+    "DNI inquilino foto": [
+      {
+        "id": "attuy6s5yyoxX9nuq",
+        "width": 1280,
+        "height": 823,
+        "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/cIUD_LFk_XCX6J0ADg3AGQ/cxMnOwuhdTw7zYGqUn0hPrpl71EkwSbrD8EfsGw06QZyiooLXq6IqUL4FcqK9GrQnGgVk69VZpX27FMJgq5aG7IzrTODj29uyb4V8xbms7-DuxNtYF0eEbZaB3Ug0r3JiOMdct2pt3I6wJ55xhnKyR4wsKHXQfKLe9oboJM00f8/8zs5zqR9WfeillJhL1YzE4kglXXWurBYTOWwWEQ0PQo",
+        "filename": "IMG_8529.JPG",
+        "size": 162007,
+        "type": "image/jpeg",
+        "thumbnails": {
+          "small": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/w9ZCYT6yODotRz2kdeLjMA/eMlgKAmjMj5eExA7TbQpKJ1hRsbHbAWiyRX1PXh-qwdIP0R9Xm5oFjGc4Ex2NnBSB9slMR9Thkusy1DTnr0ih0jLlVjQjDGgNETzBvhLELw2SnMmHILAWqqlw5rvFgOib2b-xMrG6HUfrHpkBdAgxw/kbm47s0Z4Mwv1qPOxsTTWPq6KjQ31bKNFBgud1jdt3o",
+            "width": 56,
+            "height": 36
+          },
+          "large": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/Fnt_OqGEONSoNUA8vsqWtQ/wltB1utdxSBJ58HGCWNLj2PKmbYS1u_29M1oAhJsuto4tGJxfTtKHLJhsb_Ce0aJYs4BxucHlNPmG808_YLdAafxkoy7ZheqUIY6cnkuUJHqUj_faMJp3jMsTeQ9uIV3GG0ZJsr2DKVmkoVn6V6MjA/u0gRm1oJkfdAUMk6_HG_I_I1v6oqXLe0t7sZhYzLPys",
+            "width": 796,
+            "height": 512
+          },
+          "full": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/MbwDKbDw5E_kA_zvAtRBcA/6oM-K-7TWHGYiEZW1QEmibFBBsG59xp1sxCFN8RhiabwfM35v655a4VCCcz35eBQHY51NMn-MMuYNNoPTzSvYvV_ZORerm1TniEo12MTLa936Avt1-O3DQDPJby5_p80QPVLewF3vjHG2H4Ir_fEOA/GhawtxPCmHneP9WrLEGfaC4r8rA4Z6Ic7faWfrD_0ug",
+            "width": 1280,
+            "height": 823
+          }
+        }
+      },
+      {
+        "id": "attxyyWO2vbAIyYgu",
+        "width": 960,
+        "height": 1280,
+        "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/3IxzV1cBXb4HtKC7Yp5JhA/lOK_cafq-jDZKsqyVMohRTmvFyl3_LO9NqH_bL0AUS64yn-HyS2V1p1lO7n-8toVvoDCnhOOoyyMPwfeq8djDzboc9GxnQbOb-0R_ReLWzuN69rRoHyTO5W994KbFe3336ejx23nZkq3a2CEIQphveXGM_d0C36e_kFk3--Xb44/77QyY-dNx3pvou-PivB-qS3b_3-dEb89JuDuQxY-Blo",
+        "filename": "IMG_8525.JPG",
+        "size": 97291,
+        "type": "image/jpeg",
+        "thumbnails": {
+          "small": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/IHqJRKv4tzdPgXjy4G2PKw/pY8tdcAtN5-grJEN6Wb280WX4NGYcZPAdD4HcYv5F5Lc-hmI4bmJQMVNK_JW7tr0OLd5jg6AtWSeTfs77PbrQekHNGZAFJoR3UDyW5uRMqviq8DNeMaynJerFaa0aKDv9dcOue86dLGVoh7SRbvjjg/X2anDup8IWtIJEchBjNtI_67074rV8NmkJKRIl5OeEY",
+            "width": 27,
+            "height": 36
+          },
+          "large": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/Ovzufoqj0uw5SejrtFIDRA/7NPY_zzefjcJKgzbVN4Nisa741IZK0T_V9zb3KQYWxPG_lJkGgpKXcN8omaCw3beWeDUBzHKdA7eOaqCGRHE4FhZBekMqncgdada9uN6ZTpEfzTsVe_MRtDnswbdMPMul9JMcNyUVLZCPQoW1xAdYQ/OdmbYRokdY3ZzMvuEnFISF7ArQ3J0KPusi2ZoHm7iIk",
+            "width": 512,
+            "height": 683
+          },
+          "full": {
+            "url": "https://v5.airtableusercontent.com/v3/u/53/53/1779998400000/AECAEfd8My_A7PBvPcty5g/wXtILmKD_PH4tEpIZFAD_E8roBYzUzmJA1vRCEE8ZXh8-A_Y4ySGDKJpR6w6_Yw3rAHY-UtSRLWdg6YTlNNNeScsK68SV-sRxIbjzHt8rNXTpEftwFmDLmh44QxCOI0SWJd_u6y5iQEpFLKu1YUQ0Q/hcICL4PM0QzOf4XSO9TjlaUxcxQlEAttu9n-vgWZkU4",
+            "width": 960,
+            "height": 1280
+          }
+        }
+      }
+    ],
+    "comision producto calculo": 1512,
+    "DireccionCompleta": "Av Maestro Rodrigo 45 Es: 6, Pl: 5, Pt: C    , ",
+    "linkPropietarioNombreApellidos": [
+      " "
+    ],
+    "fechaFirmaSEPA": "2026-05-28T10:40:25.000Z",
+    "recordIDpropietario": [
+      "recXo609ytG0l0Rvr"
+    ],
+    "LOPD propietario STATUS": [
+      "no creada"
+    ],
+    "pagadorMeta": "Falta indicar inquilino pagador",
+    "CheckDatosArray": "Faltan datos en propietario ():Nombre Apellidos Mail Nacionalidad Numero documento Telefono revisión LOPD Experian Mitek\nFaltan datos en inquilino (Vitalii):  revisión LOPD Experian Mitek\nFaltan datos en inquilino (Olha):  revisión LOPD Experian Mitek\n\nFaltan datos en inmueble: , Ciudad, Ref Catastral, CP, Provincia, País, nota simple\nFaltan datos en deal: Fecha firma Fecha inicio Día Pago a prop Falta indicar pagador",
+    "fechaModificado": "2026-05-28T11:10:21.000Z",
+    "id_inmueble": [
+      "rectPVfi29QmLiDQd"
+    ],
+    "producto": "mes a mes",
+    "formInmuebleDireccion": "Gior",
+    "CorregirFechaFin": 0,
+    "direccion inmueble": [
+      "Av Maestro Rodrigo 45 Es: 6, Pl: 5, Pt: C"
+    ],
+    "CheckDatosInquilino": "Faltan datos en inquilino (Vitalii):  revisión LOPD Experian Mitek\nFaltan datos en inquilino (Olha):  revisión LOPD Experian Mitek",
+    "linkInmuebleContarDeals": [
+      1
+    ],
+    "webhookDocDeleteSEPA": "https://hook.eu1.make.com/3sh5egnre9sdkonh3grkapybtwm63vab?doc=sepa&dealID=recdEihfmaTqj2clC",
+    "fechaFinAplicable": {
+      "error": "#ERROR!"
+    },
+    "mes (from linkPeriodosCierre)": [
+      5
+    ],
+    "recordID (from id_empleadolink)": [
+      "recssv4Bg8hpdS2D2"
+    ],
+    "telefono inquilino": [
+      "+34697736042",
+      "+34697712074"
+    ],
+    "fechaModificadoHubspot": "2026-05-28T10:40:25.000Z",
+    "count inquilinos": 2,
+    "webhookDocDeleteContratoArrendamiento": "https://hook.eu1.make.com/3sh5egnre9sdkonh3grkapybtwm63vab?doc=arrendamiento&dealID=recdEihfmaTqj2clC",
+    "IVA": 0,
+    "crear contrato": "https://hook.eu1.make.com/ygnt8ejc8ecm12v4mrwx4m83tvs9qw78?value=recdEihfmaTqj2clC",
+    "comisionAgenciaTemporalRenovacion": [
+      0.005
+    ],
+    "MITEK Inquilino": "pendiente",
+    "apellidos inquilino": [
+      "Yevtushenko ",
+      "Yevtushenko "
+    ],
+    "comision agencia - temporal": [
+      0.01
+    ],
+    "formPropietarioPrefilled": "https://airtable.com/shrGxo7gzoa0Ib2mo?prefill_tipo%20contacto=propietario&prefill_inmueble=rectPVfi29QmLiDQd&prefill_propietario_deal=recdEihfmaTqj2clC",
+    "DNI inquilino": [
+      "Z4053328C",
+      "Z4051492R"
+    ],
+    "alquiler mensual": 2100,
+    "Importe anual": 25200,
+    "webhookRenovacion": "https://hook.eu1.make.com/rnrmfc5v99akg4h6w9nelr2ilg0byijf?originalID=recdEihfmaTqj2clC&renovacionID=",
+    "comision producto (por defecto)": 0.06,
+    "comision agencia - renovacion mes a mes": [
+      0.005
+    ],
+    "contrato SEPA STATUS select": "no creado",
+    "inquilino link": [
+      "recYFAS5rfcJS4par",
+      "recAqZ83eaB4Is0RT"
+    ],
+    "fechaFinSiguienteContrato": {
+      "error": "#ERROR!"
+    },
+    "linkPeriodosCierreAñoIndicador": [
+      "esteAño"
+    ],
+    "diffMesVinculoVSHojaControl": 1,
+    "fechaCierreAño": 2026,
+    "linkAgenciaComisionProductoMesaMesAcordada": 0.06,
+    "mailIFnumerocuenta": [
+      "vitaliiyev@gmail.com",
+      "olha.yev@gmail.com"
+    ],
+    "linkPeriodoFinAño": 0,
+    "checkPeriodoFin": "Ok",
+    "DiasParaVencimiento": {
+      "specialValue": "NaN"
+    },
+    "nota simple": "pendiente",
+    "gestionCobroSelect": "Advancing",
+    "fechaUltimaModificacionStatus": "2026-05-28T10:40:32.000Z",
+    "URLHubspot": "https://app.hubspot.com/contacts/6235394/record/0-3/60685015928",
+    "linkInquilinoKYCMitekSelect": [
+      "Pendiente",
+      "Pendiente"
+    ],
+    "webhookCrearMinionContrato": "https://hook.eu1.make.com/v8qxt05xswbmcvrqyufpquj4gp76bja6?recordID=recdEihfmaTqj2clC&producto=mes%20a%20mes&tipoDoc=contrato&tipoContrato=NUEVO&prop=1&inq=2&ava=0&gestionCobro=Sí",
+    "crearContratoNew": "https://hook.eu1.make.com/jec84nng7df39conaq3x6s2i9t3deekr?dealID=recdEihfmaTqj2clC",
+    "EXPERIAN Inquilino": "pendiente",
+    "fechaInicioMesNumb": {
+      "error": "#ERROR!"
+    },
+    "polizaCosteCalculo": 0,
+    "formDealPrefilled": "https://airtable.com/shrK2hjzzxkm14cjy?prefill_idpropietariolink=  - propietario ()&prefill_leadorigen=&prefill_id_empleadolink=Jordi Aymerich Torregrosa",
+    "fechaModificacionStatusAdenda": "2026-05-28T10:40:25.000Z",
+    "tag": "exc",
+    "creadoPor": {
+      "id": "usroxU0i90Exyc1lS",
+      "email": "jordi@advancing.es",
+      "name": "Jordi Aymerich"
+    },
+    "webhookCrearMinionAdenda": "https://hook.eu1.make.com/v8qxt05xswbmcvrqyufpquj4gp76bja6?recordID=recdEihfmaTqj2clC&tipoDoc=adenda&prop=1&inq=2&ava=0&producto=mes%20a%20mes&gestionCobro=Sí",
+    "comision producto importe": 1829.5200000000004,
+    "webhookCrearCarpeta": "https://hook.eu1.make.com/d20riy2nfx3klcr5nqbjw8pnkowiry9p?recordID=recdEihfmaTqj2clC",
+    "linkPeriodosCierreMesIndicador": [
+      "esteMes"
+    ],
+    "webhookDocDeleteAdenda": "https://hook.eu1.make.com/3sh5egnre9sdkonh3grkapybtwm63vab?doc=adenda&dealID=recdEihfmaTqj2clC",
+    "comision agencia calculo": 252,
+    "CheckDatosInmueble": [
+      "Faltan datos en inmueble: , Ciudad, Ref Catastral, CP, Provincia, País, nota simple"
+    ],
+    "EXPERIAN Propietario": "pendiente",
+    "count propietarios": 1,
+    "IVAComisionProducto": 317.52,
+    "statusContratoArrendamiento": "no creado",
+    "count avalistas": 0,
+    "fecha modificado": "2026-05-28T11:10:21.000Z",
+    "pagadorServicio": "Propietario",
+    "linkPropietarioKYCMitekSelect": [
+      "Pendiente"
+    ],
+    "ID_deal_record": "https://airtable.com/appuV5kGKzKdXlhoR/tblwx73iceuKNaz68/viwUWap1mDhjTa7dl/recrcBgHJx1Va708U?blocks=hiderecdEihfmaTqj2clC",
+    "webhookDriveMoveContrato": "https://hook.eu1.make.com/bohe1cb551fnytsym6sk6h457fjufifd?nombreDoc=contrato&pandadocUUID=&folderID=",
+    "webhookDocDeleteContrato": "https://hook.eu1.make.com/3sh5egnre9sdkonh3grkapybtwm63vab?doc=contrato&dealID=recdEihfmaTqj2clC",
+    "linkInquilinoDNI": [
+      "Z4053328C",
+      "Z4051492R"
+    ],
+    "status fase KYC": "Pendiente",
+    "signingSystem": "Pandadoc",
+    "fechaModificacionStatusContratoArrendamiento": "2026-05-28T10:40:25.000Z",
+    "driveFolderDealURLaa": "https://drive.google.com/drive/folders/",
+    "ComisionProductoConIVA": 1829.52,
+    "crear deal historico url": "https://hook.eu1.make.com/9qdpkqf2wtdt4pz76gf7cpg2r35xtzr2?value=recdEihfmaTqj2clC",
+    "dealID": "recdEihfmaTqj2clC",
+    "inmueble_record_id": [
+      "rectPVfi29QmLiDQd"
+    ],
+    "Pipeline": "34583071",
+    "folderToCreatefolder": "1VS9xtZMPak9DdU5Mu-M3XwPCH1ytxf4Y",
+    "statusLastModifiedBy": {
+      "id": "usroxU0i90Exyc1lS",
+      "email": "jordi@advancing.es",
+      "name": "Jordi Aymerich"
+    },
+    "mesCierre": [
+      "Mayo 26"
+    ],
+    "statusHistoryPlusCurrent": "[{\"statusEntry\":\"4. LOPD\",\"dateEntry\":\"28/05/2026 12:40\",\"modifiedBy\":\"Jordi Aymerich\"},\n{\"statusEntry\":\"4. LOPD\",\"dateEntry\":\"28/05/2026 12:40\",\"modifiedBy\":\"Jordi Aymerich\"}]",
+    "fecha creado": "2026-05-28T10:40:25.000Z",
+    "enviar contrato": {
+      "label": "ENVIAR CONTRATO",
+      "url": "https://hook.eu1.make.com/emoqumg35aqy9dvgu6zb6dyomhntdktu?value=recdEihfmaTqj2clC&document=todos"
+    },
+    "comision agencia - mes a mes": [
+      0.01
+    ],
+    "linkPropietarioKYCExperianSelect": [
+      "Pendiente"
+    ],
+    "extensionesMoveStatus": "-",
+    "comision agencia - 12 meses": [
+      0.02
+    ],
+    "importe neto": 23370.48,
+    "linkInquilinoNombreApellidos": [
+      "Vitalii Yevtushenko ",
+      "Olha Yevtushenko "
+    ],
+    "webhookEnviarMinionContrato": "https://hook.eu1.make.com/cohlqfdai3b40eyywrcxo4wdeho89wwn?tipoDoc=contrato&recordID=recdEihfmaTqj2clC&canal=&uuid=",
+    "deal status": {
+      "error": "#ERROR!"
+    },
+    "importe base": 25200,
+    "id_deal": "60685015928",
+    "comision producto aplicable (txt)": "Por defecto producto (6%)",
+    "statusLastModifiedAt": "2026-05-28T10:40:32.000Z",
+    "recordID": "recdEihfmaTqj2clC",
+    "día cobro inq": 5,
+    "driveFolderDealURLLegacy": "https://drive.google.com/drive/folders/",
+    "scoring": "pendiente",
+    "fechaCreacionMesAño": "28/05/2026",
+    "prescoring": "pendiente",
+    "LOPD inquilino STATUS": [
+      "firmado",
+      "firmado"
+    ],
+    "contrato STATUS select": "no creado",
+    "diffFechaInicioVSAgo25": 9,
+    "formAgentePrefilled": "https://airtable.com/shrzjeF1VhYGT602Q?prefill_tipo%20contacto=agente&prefill_id_agencialink=recna4wTUeDd9Wbmf&prefill_agente_deal=recdEihfmaTqj2clC",
+    "contarInmuebles": 1,
+    "webhookEnviarMinionAdenda": "https://hook.eu1.make.com/cohlqfdai3b40eyywrcxo4wdeho89wwn?tipoDoc=adenda&recordID=recdEihfmaTqj2clC&canal=&uuid=",
+    "urlConciliacionBancaria": "https://airtable.com/appuGDs3spnRAvc61/pag9Sq5aPjty4P0Al/recdEihfmaTqj2clC?tableId=tblWnB9SCfCFoXzfW",
+    "webhookCrearMinionContratoArrendamiento": "https://hook.eu1.make.com/v8qxt05xswbmcvrqyufpquj4gp76bja6?recordID=recdEihfmaTqj2clC&producto=mes%20a%20mes&tipoDoc=arrendamiento&tipoContrato=NUEVO&prop=1&inq=2&ava=0&gestionCobro=Sí",
+    "nacionalidad inquilino": [
+      "-",
+      "-"
+    ],
+    "fechaModificacionStatusSEPA": "2026-05-28T10:40:25.000Z",
+    "today": "2026-05-28T16:48:54.031Z",
+    "IVAComisionAgencia": 52.919999999999995,
+    "canal de entrada": "B2B2C",
+    "LOPD inquilino VALIDAR": [
+      "Revisar",
+      "Revisar"
+    ],
+    "LOPD envio": [
+      "https://hook.eu1.make.com/dg5uvuhy2iwfubjg3or46t79drdu1af5?value=recYFAS5rfcJS4par",
+      "https://hook.eu1.make.com/dg5uvuhy2iwfubjg3or46t79drdu1af5?value=recAqZ83eaB4Is0RT"
+    ],
+    "DriveToStoreFolderAgenciaID": [
+      "1VS9xtZMPak9DdU5Mu-M3XwPCH1ytxf4Y"
+    ],
+    "statusRenovacion": "1. Potencial renovación",
+    "webhookHubspotCreate": "https://hook.eu1.make.com/a39ej6ifnpp7rta34qnklos6qcq54h8r?recordID=recdEihfmaTqj2clC",
+    "MITEK Propietario": "pendiente",
+    "indexDeal": "GIOR REAL ESTATE SLU - Av Maestro Rodrigo 45 Es: 6, Pl: 5, Pt: C [60685015928]",
+    "dateLastModifiedToHubspot": "2026-05-28T10:40:32.000Z",
+    "B2C STATUS": "4. LOPD",
+    "ultimaModificacionInmueble": "2026-05-28T10:40:33.000Z",
+    "linkPeriodoFinMes": 0,
+    "fechaFinDiaAnteriorFechaInicioSiguiente": {
+      "error": "#ERROR"
+    },
+    "webhookMigrarDeal": "https://hook.eu1.make.com/yotc7uy7ayo2jueh7qvurqtf6d43buq4?object=deal&folderType=deal&folderID=&recordID=recdEihfmaTqj2clC&locationFolderID=1VS9xtZMPak9DdU5Mu-M3XwPCH1ytxf4Y&folderName=GIOR%20REAL%20ESTATE%20SLU%20-%20Av%20Maestro%20Rodrigo%2045%20Es%3A%206%2C%20Pl%3A%205%2C%20Pt%3A%20C%20%5B60685015928%5D",
+    "ComisionAgenciaConIVA": 304.92
+  }
+}
