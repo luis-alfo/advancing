@@ -14,6 +14,14 @@
 | Tabla | `deal` `tblwx73iceuKNaz68` (**500 campos** — suscribir solo `DEAL_FIELDS`) |
 | "Deal activo" | fórmula `deal status ∈ {ABIERTO, EN TRAMITE}` (~1.376 hoy) |
 | Acceso solo lectura | la extensión **solo lee** deals; no escribe nada |
+| **Block publicado** | `blkwYK9ieC0QgUOsW` (baseId `NONE`, interface extension). Remote en `.block/remote.json` (gitignored) |
+
+**Re-publicar** (HITL — pedir OK): el remote y la api key están en `.block/` y `.airtableblocksrc.json` (ambos gitignored). Si faltan (worktree nuevo), recrear:
+```bash
+block add-remote NONE/blkwYK9ieC0QgUOsW prod && cp .block/prod.remote.json .block/remote.json
+block set-api-key <PAT con scope block:manage> --location app   # advancing-gestor sirve
+block release    # pide un comentario por stdin: echo "..." | block release
+```
 
 Campos usados (todos lookup del inmueble salvo `deal status`/`fechaCierre`), en [`frontend/lib/airtable.js`](frontend/lib/airtable.js):
 `deal status`, `CP inmueble`, `ciudad inmueble`, `provincia inmueble`, `direccion inmueble`, `mesCierre`, `fechaCierre`.
@@ -94,7 +102,9 @@ grep -c "bg-canvas" .tmp/bundle.js
 **Commits:** Conventional Commits ligero en español, sujeto < 70 chars. Trailer `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
 ## Estado
-- ✅ MVP funcional validado en preview: coropleta + puntos + proyección con inset Canarias + filtro de meses +
-  tooltips + ranking + KPIs. Lint limpio.
-- ⏳ Pendiente: probar contra la base real (`block run`), pulido final y `block release` (HITL).
-- Fuera de alcance (futuro): geocoding exacto por ref. catastral (escribir lat/lng), toggle a Mapbox, drill-down a municipios, export.
+- ✅ **Publicada** (v0.0.1, block `blkwYK9ieC0QgUOsW`). Corre contra la base real (lee deals).
+- ✅ Coropleta + puntos + inset Canarias + filtro por mes de cierre + tooltips + ranking + KPIs. Lint limpio.
+- ✅ **Zoom/pan** (rueda, arrastre, encuadre por región) y **detalle adaptativo al zoom**: CCAA → provincia → municipio → CP,
+  con etiqueta de recuento por nivel y **celdas Voronoi** de CP (d3-delaunay) al máximo zoom.
+- ⏳ Por validar con datos reales: calidad del nivel municipio (agrupa por `ciudad inmueble`); rendimiento con ~miles de deals.
+- Fuera de alcance (futuro): geocoding exacto por ref. catastral (escribir lat/lng), toggle a Mapbox, coropleta real de municipios, export.
