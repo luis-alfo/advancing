@@ -3,12 +3,17 @@
 // Alias configurado en el comando esbuild (ver scripts npm: preview:build / preview:watch).
 import React from 'react';
 
+// Los lookups multi-valor: el SDK REAL los devuelve como [{linkedRecordId, value}] en getCellValue
+// (no como strings). Replicarlo aquí para que el preview detecte cualquier uso incorrecto.
+const LOOKUP_FIELDS = new Set(['CP inmueble', 'ciudad inmueble', 'provincia inmueble', 'direccion inmueble', 'mesCierre']);
 function makeRecord(id, data) {
   return {
     id,
     getCellValue(name) {
       const v = data[name];
-      return v === undefined ? null : v;
+      if (v === undefined) return null;
+      if (LOOKUP_FIELDS.has(name) && Array.isArray(v)) return v.map((x) => ({linkedRecordId: 'recMock', value: x}));
+      return v;
     },
     getCellValueAsString(name) {
       const v = data[name];

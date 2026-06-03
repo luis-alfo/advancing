@@ -1,17 +1,19 @@
 // Constantes de la base (Gestor de Operaciones, appuV5kGKzKdXlhoR) y helpers de lectura.
-// Trampas respetadas: los lookups multi-valor son ARRAYS → first(); las fechas ES no se
-// parsean con new Date(string) salvo ISO de Airtable (fechaCierre ya viene 'YYYY-MM-DD').
+// CLAVE: en el SDK real, getCellValue de un lookup (multipleLookupValues) devuelve un array de
+// objetos { value } — no de strings. Por eso para TEXTO usamos getCellValueAsString (robusto:
+// devuelve lo que se ve en la celda). Para la FECHA usamos getCellValue (ISO), porque
+// getCellValueAsString daría formato local D/M/YYYY (trampa de fechas ES).
 
 export const DEAL_TABLE_ID = 'tblwx73iceuKNaz68'; // tabla `deal` (500 campos)
 
 // Campos mínimos a suscribir (regla: declarar lista por los 500 campos de deal).
 export const F = {
   status: 'deal status', // formula → ABIERTO / EN TRAMITE / TERMINADO / #ERROR
-  cp: 'CP inmueble', // lookup (array)
-  ciudad: 'ciudad inmueble', // lookup (array)
-  provincia: 'provincia inmueble', // lookup (array, texto sucio — solo fallback/label)
-  direccion: 'direccion inmueble', // lookup (array)
-  mesCierre: 'mesCierre', // lookup (array) → 'Mayo 26'
+  cp: 'CP inmueble', // lookup (array de {value})
+  ciudad: 'ciudad inmueble', // lookup
+  provincia: 'provincia inmueble', // lookup (texto sucio — solo fallback/label)
+  direccion: 'direccion inmueble', // lookup
+  mesCierre: 'mesCierre', // lookup → 'Mayo 26'
   fechaCierre: 'fechaCierre', // date → 'YYYY-MM-DD'
 };
 export const DEAL_FIELDS = Object.values(F);
@@ -19,10 +21,33 @@ export const DEAL_FIELDS = Object.values(F);
 // "Deal activo" = vigente hoy o entrando (decisión de producto).
 export const ACTIVE_STATUSES = new Set(['ABIERTO', 'EN TRAMITE']);
 
-// Primer valor de un lookup (array) o el escalar tal cual.
-export function first(v) {
-  if (Array.isArray(v)) return v.length ? v[0] : null;
-  return v == null ? null : v;
+// Texto renderizado de una celda. getCellValueAsString es robusto para lookups/selects/formulas:
+// devuelve lo que se ve en la celda, sin el envoltorio {value} interno del SDK.
+export function cellStr(record, name) {
+  try {
+    const s = record.getCellValueAsString(name);
+    return s == null || s === '' ? null : s;
+  } catch {
+    return null;
+  }
+}
+
+// Primer valor de un lookup multi-valor (getCellValueAsString une varios con ", ").
+export function firstStr(record, name) {
+  const s = cellStr(record, name);
+  return s == null ? null : s.split(',')[0].trim();
+}
+
+// Fecha en ISO 'YYYY-MM-DD' vía getCellValue (no AsString, que daría formato local).
+export function dateISO(record, name) {
+  try {
+    const v = record.getCellValue(name);
+    if (typeof v === 'string') return v;
+    if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // Normaliza un nombre para agrupar (sin acentos, minúsculas, sin espacios extra).
@@ -35,15 +60,6 @@ export function normName(s) {
     out += t[i];
   }
   return out;
-}
-
-// Lectura segura de una celda (el SDK y el mock exponen getCellValue).
-export function cell(record, name) {
-  try {
-    return record.getCellValue(name);
-  } catch {
-    return null;
-  }
 }
 
 // Normaliza un CP español a 5 dígitos. Devuelve null si no hay 2 dígitos de provincia válidos.
@@ -75,15 +91,15 @@ export function labelFromIndex(idx) {
 
 // Deriva {year, month, idx} del cierre. Prioriza fechaCierre (ISO); cae a mesCierre ('Mayo 26').
 export function closeYM(record) {
-  const fc = cell(record, F.fechaCierre);
-  if (typeof fc === 'string' && /^\d{4}-\d{2}-\d{2}/.test(fc)) {
+  const fc = dateISO(record, F.fechaCierre);
+  if (fc && /^\d{4}-\d{2}-\d{2}/.test(fc)) {
     const year = +fc.slice(0, 4);
     const month = +fc.slice(5, 7);
     if (month >= 1 && month <= 12) return {year, month, idx: ymIndex(year, month)};
   }
-  const mc = first(cell(record, F.mesCierre));
-  if (typeof mc === 'string') {
-    const m = mc.trim().match(/^([a-záéíóú]+)\s+(\d{2,4})$/i);
+  const mc = firstStr(record, F.mesCierre);
+  if (mc) {
+    const m = mc.match(/^([a-záéíóú]+)\s+(\d{2,4})$/i);
     if (m) {
       const month = MESES_ES[m[1].toLowerCase()];
       let year = +m[2];

@@ -1,16 +1,16 @@
 // Transformación deals → datos del mapa: normalización, filtro temporal y agregados.
-import {F, cell, first, normCP, normName, closeYM, ACTIVE_STATUSES} from './airtable';
+import {F, firstStr, normCP, normName, closeYM, ACTIVE_STATUSES} from './airtable';
 import {PROV_TO_CCAA} from './regions';
 import {cpLngLat, provinceLngLat, hasProvince} from './geo';
 
 // Normaliza un record de deal a un objeto plano para el mapa.
 export function toDeal(record) {
-  const status = first(cell(record, F.status));
-  const cp = normCP(first(cell(record, F.cp)));
+  const status = firstStr(record, F.status);
+  const cp = normCP(firstStr(record, F.cp));
   const provINE = cp ? cp.slice(0, 2) : null;
-  const ciudad = first(cell(record, F.ciudad));
-  const direccion = first(cell(record, F.direccion));
-  const provinciaTxt = first(cell(record, F.provincia));
+  const ciudad = firstStr(record, F.ciudad);
+  const direccion = firstStr(record, F.direccion);
+  const provinciaTxt = firstStr(record, F.provincia);
   const ym = closeYM(record); // {year, month, idx} | null
   // Posición: centroide del CP; si falta, centroide de la provincia (degradación elegante).
   let lnglat = cp ? cpLngLat(cp) : null;
@@ -23,7 +23,7 @@ export function toDeal(record) {
 export function activeDeals(records) {
   const out = [];
   for (const r of records) {
-    const status = first(cell(r, F.status));
+    const status = firstStr(r, F.status);
     if (!ACTIVE_STATUSES.has(status)) continue;
     out.push(toDeal(r));
   }
