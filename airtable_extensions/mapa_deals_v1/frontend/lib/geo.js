@@ -15,6 +15,17 @@ export const PROVINCE_NAME = new Map(provinceFeatures.map((f) => [f.id, f.proper
 // Centroide [lng,lat] por provincia (fallback de posición cuando falta/está sucio el CP).
 const PROVINCE_CENTROID = new Map(provinceFeatures.map((f) => [f.id, geoCentroid(f)]));
 
+// CCAA (autonomous_regions de es-atlas, id = código INE de comunidad).
+export const ccaaFC = topo.objects.autonomous_regions
+  ? feature(topo, topo.objects.autonomous_regions)
+  : {type: 'FeatureCollection', features: []};
+export const ccaaFeatures = ccaaFC.features;
+export const CCAA_NAME = new Map(ccaaFeatures.map((f) => [f.id, f.properties.name]));
+const CCAA_CENTROID = new Map(ccaaFeatures.map((f) => [f.id, geoCentroid(f)]));
+export function ccaaLngLat(id) {
+  return CCAA_CENTROID.get(id) || null;
+}
+
 // Proyección compuesta (península + Baleares + Canarias en inset), ajustada al viewport
 // con un margen interior. fitExtent evita recolocar el inset (a diferencia de fitSize + translate).
 export function makeProjection(width, height, margin = 0) {

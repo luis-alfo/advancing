@@ -28,7 +28,7 @@ async function download(url, dest) {
 await download('https://unpkg.com/es-atlas/es/provinces.json', join(CACHE, 'es-provinces.json'));
 const atlas = JSON.parse(readFileSync(join(CACHE, 'es-provinces.json'), 'utf8'));
 const objects = {};
-for (const k of ['provinces', 'border']) if (atlas.objects[k]) objects[k] = atlas.objects[k];
+for (const k of ['autonomous_regions', 'provinces', 'border']) if (atlas.objects[k]) objects[k] = atlas.objects[k];
 const provincias = {type: 'Topology', transform: atlas.transform, objects, arcs: atlas.arcs};
 writeFileSync(join(GEO, 'provincias-es.json'), JSON.stringify(provincias));
 

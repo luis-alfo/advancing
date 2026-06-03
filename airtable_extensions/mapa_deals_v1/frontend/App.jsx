@@ -54,12 +54,7 @@ function MapaDeals({table}) {
   const filtered = useMemo(() => filterByMonth(active, from, to, includeUndated), [active, from, to, includeUndated]);
   const agg = useMemo(() => aggregate(filtered), [filtered]);
 
-  const onHoverProvince = useCallback((p) => {
-    setTip(p ? {x: p.x, y: p.y, title: p.name, rows: [{label: 'Deals activos', value: p.count}]} : null);
-  }, []);
-  const onHoverPoint = useCallback((p) => {
-    setTip(p ? {x: p.x, y: p.y, title: `CP ${p.cp}${p.ciudad ? ' · ' + p.ciudad : ''}`, rows: [{label: 'Deals', value: p.count}]} : null);
-  }, []);
+  const onHover = useCallback((data) => setTip(data), []);
   const onClickProvince = useCallback((ine) => setSelectedId((s) => (s === ine ? null : ine)), []);
   const onChange = useCallback((f, t) => setSel({from: f, to: t}), []);
   const onReset = useCallback(() => setSel(null), []);
@@ -115,13 +110,7 @@ function MapaDeals({table}) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">No hay deals activos para mostrar.</div>
           ) : (
             <div className="h-full bg-paper rounded-xl shadow-card border border-line p-3">
-              <MapaEspana
-                agg={agg}
-                selectedId={selectedId}
-                onHoverProvince={onHoverProvince}
-                onHoverPoint={onHoverPoint}
-                onClickProvince={onClickProvince}
-              />
+              <MapaEspana agg={agg} selectedId={selectedId} onHover={onHover} onClickProvince={onClickProvince} />
             </div>
           )}
         </main>

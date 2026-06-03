@@ -25,6 +25,18 @@ export function first(v) {
   return v == null ? null : v;
 }
 
+// Normaliza un nombre para agrupar (sin acentos, minúsculas, sin espacios extra).
+export function normName(s) {
+  const t = (s == null ? '' : String(s)).trim().toLowerCase().normalize('NFD');
+  let out = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c >= 0x300 && c <= 0x36f) continue; // marca diacrítica combinante
+    out += t[i];
+  }
+  return out;
+}
+
 // Lectura segura de una celda (el SDK y el mock exponen getCellValue).
 export function cell(record, name) {
   try {
