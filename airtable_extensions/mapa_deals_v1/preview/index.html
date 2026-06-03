@@ -35,6 +35,10 @@
     <style>
       html, body, #root { height: 100%; }
       body { font-family: 'Mulish', ui-sans-serif, system-ui, sans-serif; }
+      /* Reglas del mapa (en producción vienen de frontend/style.css; el preview no lo importa). */
+      .mapa-svg { display: block; width: 100%; height: 100%; }
+      .mapa-svg .provincia { cursor: pointer; }
+      .mapa-zoom-anim { transition: transform 0.35s ease-out; }
     </style>
   </head>
   <body>

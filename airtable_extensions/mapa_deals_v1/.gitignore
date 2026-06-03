@@ -10,9 +10,10 @@ dist/
 # .block/ contiene remote.json (blockId, no secreto) — recreable desde CLAUDE.md.
 .block/
 
-# Preview local (bundle generado)
+# Preview local (bundle y HTML autocontenido generados)
 preview/preview.bundle.js
 preview/preview.bundle.js.map
+preview/standalone.html
 
 # Caché de fuentes de datos para build-geo.mjs (descargables; no versionar).
 scripts/.cache/

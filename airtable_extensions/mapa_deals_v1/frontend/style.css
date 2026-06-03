@@ -27,3 +27,7 @@
 .mapa-svg .punto {
   transition: opacity 0.15s ease-out;
 }
+/* Animación suave al encuadrar una provincia / resetear el zoom (no en rueda ni arrastre). */
+.mapa-zoom-anim {
+  transition: transform 0.35s ease-out;
+}
