@@ -17,6 +17,7 @@ const path = geoPath(projection);
 const mkPaths = (features) =>
   features.map((f) => ({id: f.id, name: f.properties.name, d: path(f), bounds: path.bounds(f), cxy: projection(geoCentroid(f))}));
 const PROVINCE_PATHS = mkPaths(provinceFeatures);
+const PROVINCE_BY_ID = new Map(PROVINCE_PATHS.map((p) => [p.id, p]));
 const CCAA_PATHS = mkPaths(ccaaFeatures);
 const BORDER_D = borderMesh ? path(borderMesh) : null;
 const COMPOSITION_D = typeof projection.getCompositionBorders === 'function' ? projection.getCompositionBorders() : null;
@@ -138,17 +139,34 @@ function MapaEspana({agg, selectedKey, onHover, onSelect}) {
     for (const e of src.values()) {
       const xy = e.lnglat ? projection(e.lnglat) : null;
       if (!xy || !Number.isFinite(xy[0]) || !Number.isFinite(xy[1])) continue;
-      out.push({key: e.key || e.cp, cp: e.cp, name: e.name || e.ciudad, ciudad: e.ciudad, count: e.count, deals: e.deals, cx: xy[0], cy: xy[1], r: radiusFor(e.count)});
+      out.push({key: e.key || e.cp, cp: e.cp, provINE: e.provINE, name: e.name || e.ciudad, ciudad: e.ciudad, count: e.count, deals: e.deals, cx: xy[0], cy: xy[1], r: radiusFor(e.count)});
     }
     out.sort((a, b) => b.r - a.r);
     return out;
   }, [level, agg]);
 
-  const voronoi = useMemo(() => {
-    if (level !== 'cp' || markers.length < 2) return null;
-    const del = Delaunay.from(markers.map((m) => [m.cx, m.cy]));
-    const vor = del.voronoi([0, 0, W, H]);
-    return markers.map((m, i) => vor.renderCell(i));
+  // Celdas Voronoi de CP calculadas POR PROVINCIA y recortadas a su límite real (no globalmente):
+  // así las divisiones quedan dentro de fronteras administrativas reales y tienen sentido geográfico.
+  const voronoiByProv = useMemo(() => {
+    if (level !== 'cp') return null;
+    const byProv = new Map();
+    for (const m of markers) {
+      if (!m.provINE || !PROVINCE_BY_ID.has(m.provINE)) continue;
+      if (!byProv.has(m.provINE)) byProv.set(m.provINE, []);
+      byProv.get(m.provINE).push(m);
+    }
+    const out = [];
+    for (const [ine, cps] of byProv) {
+      const p = PROVINCE_BY_ID.get(ine);
+      let cells = [];
+      if (cps.length >= 2) {
+        const [[x0, y0], [x1, y1]] = p.bounds;
+        const vor = Delaunay.from(cps.map((m) => [m.cx, m.cy])).voronoi([x0 - 2, y0 - 2, x1 + 2, y1 + 2]);
+        cells = cps.map((_, i) => vor.renderCell(i)).filter(Boolean);
+      }
+      out.push({ine, d: p.d, cells});
+    }
+    return out;
   }, [level, markers]);
 
   const labelCands = useMemo(() => {
@@ -206,11 +224,12 @@ function MapaEspana({agg, selectedKey, onHover, onSelect}) {
         }}
       >
         <defs>
-          {BORDER_D && (
-            <clipPath id="esp-clip">
-              <path d={BORDER_D} />
-            </clipPath>
-          )}
+          {voronoiByProv &&
+            voronoiByProv.map(({ine, d}) => (
+              <clipPath key={ine} id={`pc-${ine}`}>
+                <path d={d} />
+              </clipPath>
+            ))}
         </defs>
 
         <g transform={`translate(${view.tx},${view.ty}) scale(${view.k})`} className={animate ? 'mapa-zoom-anim' : undefined}>
@@ -265,11 +284,16 @@ function MapaEspana({agg, selectedKey, onHover, onSelect}) {
           {BORDER_D && <path d={BORDER_D} fill="none" stroke="#02005c" strokeWidth={0.8} strokeOpacity={0.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
           {COMPOSITION_D && <path d={COMPOSITION_D} fill="none" stroke="#cbd0d8" strokeWidth={0.7} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" pointerEvents="none" />}
 
-          {voronoi && (
-            <g clipPath="url(#esp-clip)" pointerEvents="none">
-              {voronoi.map((d, i) => d && <path key={markers[i].key} d={d} fill="none" stroke="#24df86" strokeWidth={0.5} strokeOpacity={0.55} vectorEffect="non-scaling-stroke" />)}
-            </g>
-          )}
+          {voronoiByProv &&
+            voronoiByProv.map(({ine, cells}) =>
+              cells.length > 0 ? (
+                <g key={ine} clipPath={`url(#pc-${ine})`} pointerEvents="none">
+                  {cells.map((d, i) => (
+                    <path key={i} d={d} fill="none" stroke="#24df86" strokeWidth={0.5} strokeOpacity={0.45} vectorEffect="non-scaling-stroke" />
+                  ))}
+                </g>
+              ) : null,
+            )}
 
           {(level === 'municipio' || level === 'cp') &&
             markers.map((m) => {
