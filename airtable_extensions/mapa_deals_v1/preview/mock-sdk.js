@@ -24,9 +24,16 @@ function makeRecord(id, data) {
 }
 
 // D(id, status, CP, ciudad, provincia(txt), direccion, mesCierre, fechaCierre)
-// Los lookups del inmueble son ARRAYS (como en la base real).
-const D = (id, status, cp, ciudad, prov, dir, mes, fecha) =>
-  makeRecord(id, {
+// Los lookups del inmueble son ARRAYS (como en la base real); los campos de análisis se generan
+// de forma determinista por id para ver el panel (canal/tipo/producto/inicio/fin/alquiler).
+const CANALES = ['B2C', 'B2B2C'];
+const TIPOS = ['NUEVO', 'RENOVACION', 'EXTENSION'];
+const PRODUCTOS = ['mes a mes', '12 meses', 'temporal'];
+const D = (id, status, cp, ciudad, prov, dir, mes, fecha) => {
+  const h = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const ini = fecha ? `${fecha.slice(0, 8)}01` : '2026-01-01';
+  const fin = fecha ? `${+fecha.slice(0, 4) + 1}${fecha.slice(4, 8)}01` : '2027-01-01';
+  return makeRecord(id, {
     'deal status': status,
     'CP inmueble': cp ? [cp] : [],
     'ciudad inmueble': ciudad ? [ciudad] : [],
@@ -34,7 +41,14 @@ const D = (id, status, cp, ciudad, prov, dir, mes, fecha) =>
     'direccion inmueble': dir ? [dir] : [],
     mesCierre: mes ? [mes] : [],
     fechaCierre: fecha || '',
+    'canal de entrada': CANALES[h % CANALES.length],
+    'tipo contrato': TIPOS[h % TIPOS.length],
+    producto: PRODUCTOS[h % PRODUCTOS.length],
+    'fecha inicio': ini,
+    'fecha fin': fin,
+    'alquiler mensual': 800 + (h % 20) * 75,
   });
+};
 
 const DEALS = [
   // Valencia (concentración alta)

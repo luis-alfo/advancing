@@ -4,7 +4,7 @@ import {PROVINCE_NAME} from '../lib/geo';
 
 export default function PanelRanking({byProvince, total, selectedId, onSelect}) {
   const rows = useMemo(() => {
-    const r = [...byProvince.entries()].map(([ine, count]) => ({ine, name: PROVINCE_NAME.get(ine) || ine, count}));
+    const r = [...byProvince.entries()].map(([ine, e]) => ({ine, name: PROVINCE_NAME.get(ine) || ine, count: e.count}));
     r.sort((a, b) => b.count - a.count);
     return r;
   }, [byProvince]);

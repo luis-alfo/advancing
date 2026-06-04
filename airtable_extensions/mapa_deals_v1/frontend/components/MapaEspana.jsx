@@ -1,7 +1,5 @@
-// Mapa SVG de España con detalle adaptativo al zoom:
-//   zoom out → CCAA · provincia · municipio · CP (al máximo zoom).
-// En cada nivel: relleno/contexto + puntos (municipio/CP) + celdas Voronoi (CP) + etiquetas con recuento.
-// Interacción: rueda para zoom, arrastrar para mover, clic en región para encuadrarla, controles +/−/reset.
+// Mapa SVG de España con detalle adaptativo al zoom (CCAA · provincia · municipio · CP),
+// etiquetas de recuento, celdas Voronoi de CP, y SELECCIÓN: clic en burbuja/región → onSelect(lista de deals).
 import React, {useMemo, useState, useRef, useEffect, useCallback} from 'react';
 import {geoPath, geoCentroid} from 'd3-geo';
 import {Delaunay} from 'd3-delaunay';
@@ -12,7 +10,7 @@ import {fillFor, radiusFor, EMPTY_FILL, POINT_FILL, POINT_STROKE, POINT_OPACITY}
 const W = 640;
 const H = 520;
 const M = 10;
-const MAXK = 9;
+const MAXK = 28; // zoom máximo (suficiente para separar CPs densos)
 
 const projection = makeProjection(W, H, M);
 const path = geoPath(projection);
@@ -25,20 +23,23 @@ const COMPOSITION_D = typeof projection.getCompositionBorders === 'function' ? p
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function clampView({k, tx, ty}) {
-  if (k <= 1) return {k: 1, tx: 0, ty: 0};
-  return {k, tx: clamp(tx, W - W * k, 0), ty: clamp(ty, H - H * k, 0)};
+  // Saneamiento: si entra un NaN/Inf (p. ej. rect width 0 durante un re-layout), volver a estado válido.
+  if (!Number.isFinite(k) || k <= 1) return {k: 1, tx: 0, ty: 0};
+  const sx = Number.isFinite(tx) ? tx : 0;
+  const sy = Number.isFinite(ty) ? ty : 0;
+  return {k, tx: clamp(sx, W - W * k, 0), ty: clamp(sy, H - H * k, 0)};
 }
 
-// Coloca etiquetas evitando solapes (rejilla simple). cands ordenadas por relevancia (count desc).
 function layoutLabels(cands, k, tx, ty) {
   const occ = new Set();
   const out = [];
   const cw = 30;
   const ch = 22;
   for (const c of cands) {
-    if (!c.x && c.x !== 0) continue;
+    if (!Number.isFinite(c.x) || !Number.isFinite(c.y)) continue;
     const sx = tx + c.x * k;
     const sy = ty + c.y * k;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
     if (sx < 8 || sx > W - 8 || sy < 10 || sy > H - 10) continue;
     const key = `${Math.floor(sx / cw)},${Math.floor(sy / ch)}`;
     if (occ.has(key)) continue;
@@ -48,7 +49,7 @@ function layoutLabels(cands, k, tx, ty) {
   return out;
 }
 
-function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
+function MapaEspana({agg, selectedKey, onHover, onSelect}) {
   const svgRef = useRef(null);
   const [view, setViewRaw] = useState({k: 1, tx: 0, ty: 0});
   const [animate, setAnimate] = useState(false);
@@ -65,6 +66,7 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
 
   const toSvg = useCallback((clientX, clientY) => {
     const rect = svgRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return [W / 2, H / 2]; // evita división por 0 → NaN
     return [((clientX - rect.left) / rect.width) * W, ((clientY - rect.top) / rect.height) * H];
   }, []);
 
@@ -74,7 +76,7 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
     const onWheel = (e) => {
       e.preventDefault();
       const [sx, sy] = toSvg(e.clientX, e.clientY);
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
       setView((v) => {
         const k = clamp(v.k * factor, 1, MAXK);
         const rf = k / v.k;
@@ -123,33 +125,25 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
   const reset = useCallback(() => setView({k: 1, tx: 0, ty: 0}, true), [setView]);
   const zoomStep = useCallback((dir) => {
     setView((v) => {
-      const k = clamp(v.k * (dir > 0 ? 1.5 : 1 / 1.5), 1, MAXK);
+      const k = clamp(v.k * (dir > 0 ? 1.6 : 1 / 1.6), 1, MAXK);
       const rf = k / v.k;
       return {k, tx: W / 2 - (W / 2 - v.tx) * rf, ty: H / 2 - (H / 2 - v.ty) * rf};
     }, true);
   }, [setView]);
 
-  const clickRegion = useCallback((id, bounds, isProvince) => {
-    if (lastMoved.current) return;
-    if (isProvince) onClickProvince(id);
-    zoomToBounds(bounds);
-  }, [onClickProvince, zoomToBounds]);
-
-  // Marcadores (municipio o CP) proyectados.
   const markers = useMemo(() => {
     if (level !== 'municipio' && level !== 'cp') return [];
     const src = level === 'municipio' ? agg.byMunicipio : agg.byCP;
     const out = [];
     for (const e of src.values()) {
-      const xy = projection(e.lnglat);
-      if (!xy || Number.isNaN(xy[0])) continue;
-      out.push({key: e.key || e.cp, cp: e.cp, name: e.name || e.ciudad, ciudad: e.ciudad, count: e.count, cx: xy[0], cy: xy[1], r: radiusFor(e.count)});
+      const xy = e.lnglat ? projection(e.lnglat) : null;
+      if (!xy || !Number.isFinite(xy[0]) || !Number.isFinite(xy[1])) continue;
+      out.push({key: e.key || e.cp, cp: e.cp, name: e.name || e.ciudad, ciudad: e.ciudad, count: e.count, deals: e.deals, cx: xy[0], cy: xy[1], r: radiusFor(e.count)});
     }
     out.sort((a, b) => b.r - a.r);
     return out;
   }, [level, agg]);
 
-  // Celdas Voronoi de los CP (solo en el nivel máximo).
   const voronoi = useMemo(() => {
     if (level !== 'cp' || markers.length < 2) return null;
     const del = Delaunay.from(markers.map((m) => [m.cx, m.cy]));
@@ -157,13 +151,12 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
     return markers.map((m, i) => vor.renderCell(i));
   }, [level, markers]);
 
-  // Etiquetas candidatas del nivel (ordenadas por recuento desc).
   const labelCands = useMemo(() => {
     let c = [];
     if (level === 'ccaa') {
-      c = CCAA_PATHS.filter((p) => p.cxy && agg.byCCAA.get(p.id)).map((p) => ({x: p.cxy[0], y: p.cxy[1], name: p.name, count: agg.byCCAA.get(p.id), showName: true}));
+      c = CCAA_PATHS.filter((p) => p.cxy && agg.byCCAA.get(p.id)).map((p) => ({x: p.cxy[0], y: p.cxy[1], name: p.name, count: agg.byCCAA.get(p.id).count, showName: true}));
     } else if (level === 'provincia') {
-      c = PROVINCE_PATHS.filter((p) => p.cxy && agg.byProvince.get(p.id)).map((p) => ({x: p.cxy[0], y: p.cxy[1], name: p.name, count: agg.byProvince.get(p.id), showName: true}));
+      c = PROVINCE_PATHS.filter((p) => p.cxy && agg.byProvince.get(p.id)).map((p) => ({x: p.cxy[0], y: p.cxy[1], name: p.name, count: agg.byProvince.get(p.id).count, showName: true}));
     } else {
       c = markers.map((m) => ({x: m.cx, y: m.cy, name: m.name, count: m.count, showName: level === 'municipio'}));
     }
@@ -175,12 +168,22 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
 
   const fillsProv = useMemo(() => {
     const m = new Map();
-    for (const p of PROVINCE_PATHS) m.set(p.id, fillFor(agg.byProvince.get(p.id) || 0, agg.maxProvince));
+    for (const p of PROVINCE_PATHS) m.set(p.id, fillFor(agg.byProvince.get(p.id)?.count || 0, agg.maxProvince));
     return m;
   }, [agg]);
 
   const tipRegion = (name, count, e) => onHover({x: e.clientX, y: e.clientY, title: name, rows: [{label: 'Deals activos', value: count}]});
   const tipMarker = (m, e) => onHover({x: e.clientX, y: e.clientY, title: level === 'cp' ? `CP ${m.cp}${m.ciudad ? ` · ${m.ciudad}` : ''}` : m.name, rows: [{label: 'Deals', value: m.count}]});
+
+  const selectRegion = (id, name, bounds, entry) => {
+    if (lastMoved.current || !entry) return;
+    zoomToBounds(bounds);
+    onSelect({kind: level === 'ccaa' ? 'ccaa' : 'provincia', key: id, title: name});
+  };
+  const selectMarker = (m) => {
+    if (lastMoved.current) return;
+    onSelect({kind: level === 'cp' ? 'cp' : 'municipio', key: m.key, title: level === 'cp' ? `CP ${m.cp}${m.ciudad ? ` · ${m.ciudad}` : ''}` : m.name});
+  };
 
   const btn = 'w-7 h-7 flex items-center justify-center rounded-md bg-paper border border-line text-navy shadow-card hover:bg-canvas hover:text-brand transition-colors text-base leading-none';
 
@@ -214,19 +217,21 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
           {level === 'ccaa' ? (
             <>
               {CCAA_PATHS.map((c) => {
-                const count = agg.byCCAA.get(c.id) || 0;
+                const entry = agg.byCCAA.get(c.id);
+                const count = entry?.count || 0;
+                const isSel = selectedKey === c.id;
                 return (
                   <path
                     key={c.id}
                     className="provincia"
                     d={c.d}
                     fill={fillFor(count, agg.maxCCAA)}
-                    stroke="#ffffff"
-                    strokeWidth={0.7}
+                    stroke={isSel ? '#43feae' : '#ffffff'}
+                    strokeWidth={isSel ? 1.6 : 0.7}
                     vectorEffect="non-scaling-stroke"
                     onMouseMove={(e) => tipRegion(c.name, count, e)}
                     onMouseLeave={() => onHover(null)}
-                    onClick={() => clickRegion(c.id, c.bounds, false)}
+                    onClick={() => selectRegion(c.id, c.name, c.bounds, entry)}
                   />
                 );
               })}
@@ -236,8 +241,9 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
             </>
           ) : (
             PROVINCE_PATHS.map((p) => {
-              const count = agg.byProvince.get(p.id) || 0;
-              const isSel = selectedId === p.id;
+              const entry = agg.byProvince.get(p.id);
+              const count = entry?.count || 0;
+              const isSel = selectedKey === p.id;
               const fill = level === 'provincia' ? fillsProv.get(p.id) : EMPTY_FILL;
               return (
                 <path
@@ -250,7 +256,7 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
                   vectorEffect="non-scaling-stroke"
                   onMouseMove={(e) => tipRegion(p.name, count, e)}
                   onMouseLeave={() => onHover(null)}
-                  onClick={() => clickRegion(p.id, p.bounds, true)}
+                  onClick={() => selectRegion(p.id, p.name, p.bounds, entry)}
                 />
               );
             })
@@ -266,25 +272,29 @@ function MapaEspana({agg, selectedId, onHover, onClickProvince}) {
           )}
 
           {(level === 'municipio' || level === 'cp') &&
-            markers.map((m) => (
-              <circle
-                key={m.key}
-                className="punto"
-                cx={m.cx}
-                cy={m.cy}
-                r={m.r / view.k}
-                fill={POINT_FILL}
-                fillOpacity={POINT_OPACITY}
-                stroke={POINT_STROKE}
-                strokeWidth={0.7}
-                vectorEffect="non-scaling-stroke"
-                onMouseMove={(e) => tipMarker(m, e)}
-                onMouseLeave={() => onHover(null)}
-              />
-            ))}
+            markers.map((m) => {
+              const isSel = selectedKey === m.key;
+              return (
+                <circle
+                  key={m.key}
+                  className="punto"
+                  cx={m.cx}
+                  cy={m.cy}
+                  r={m.r / view.k}
+                  fill={POINT_FILL}
+                  fillOpacity={isSel ? 0.95 : POINT_OPACITY}
+                  stroke={isSel ? '#050f8d' : POINT_STROKE}
+                  strokeWidth={isSel ? 2 : 0.7}
+                  vectorEffect="non-scaling-stroke"
+                  style={{cursor: 'pointer'}}
+                  onMouseMove={(e) => tipMarker(m, e)}
+                  onMouseLeave={() => onHover(null)}
+                  onClick={() => selectMarker(m)}
+                />
+              );
+            })}
         </g>
 
-        {/* Etiquetas en coordenadas del viewBox (tamaño constante, fuera del grupo escalado). */}
         <g pointerEvents="none">
           {labels.map((l, i) => (
             <text key={i} x={l.sx} y={l.sy} textAnchor="middle" style={{paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 3, strokeLinejoin: 'round'}}>

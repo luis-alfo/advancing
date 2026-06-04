@@ -15,6 +15,13 @@ export const F = {
   direccion: 'direccion inmueble', // lookup
   mesCierre: 'mesCierre', // lookup → 'Mayo 26'
   fechaCierre: 'fechaCierre', // date → 'YYYY-MM-DD'
+  // Análisis (panel de deals):
+  canal: 'canal de entrada', // singleSelect → B2B2C / B2C
+  tipoContrato: 'tipo contrato', // singleSelect → NUEVO / RENOVACION / EXTENSION / FLEXIBLE
+  producto: 'producto', // singleSelect → mes a mes / 12 meses / ...
+  fechaInicio: 'fecha inicio', // date
+  fechaFin: 'fecha fin', // formula → ISO o #ERROR
+  alquiler: 'alquiler mensual', // currency → número (ticket de renta)
 };
 export const DEAL_FIELDS = Object.values(F);
 
@@ -48,6 +55,28 @@ export function dateISO(record, name) {
   } catch {
     return null;
   }
+}
+
+// Número (currency, number) vía getCellValue.
+export function cellNum(record, name) {
+  try {
+    const v = record.getCellValue(name);
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// Formatea importe en euros (sin decimales si es entero grande).
+export function euro(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return `${Math.round(n).toLocaleString('es-ES')} €`;
+}
+
+// Fecha ISO 'YYYY-MM-DD' → 'DD/MM/YY' (corto, para tarjetas).
+export function fmtDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '—';
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
 }
 
 // Normaliza un nombre para agrupar (sin acentos, minúsculas, sin espacios extra).

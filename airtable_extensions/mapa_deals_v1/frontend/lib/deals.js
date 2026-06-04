@@ -1,9 +1,9 @@
-// Transformación deals → datos del mapa: normalización, filtro temporal y agregados.
-import {F, firstStr, normCP, normName, closeYM, ACTIVE_STATUSES} from './airtable';
+// Transformación deals → datos del mapa: normalización, filtro temporal, agregados y estadísticas.
+import {F, firstStr, dateISO, cellNum, normCP, normName, closeYM, ACTIVE_STATUSES} from './airtable';
 import {PROV_TO_CCAA} from './regions';
 import {cpLngLat, provinceLngLat, hasProvince} from './geo';
 
-// Normaliza un record de deal a un objeto plano para el mapa.
+// Normaliza un record de deal a un objeto plano para el mapa + análisis.
 export function toDeal(record) {
   const status = firstStr(record, F.status);
   const cp = normCP(firstStr(record, F.cp));
@@ -16,7 +16,25 @@ export function toDeal(record) {
   let lnglat = cp ? cpLngLat(cp) : null;
   const located = !!lnglat;
   if (!lnglat && provINE && hasProvince(provINE)) lnglat = provinceLngLat(provINE);
-  return {id: record.id, status, cp, provINE, ciudad, direccion, provinciaTxt, ym, lnglat, located};
+  return {
+    id: record.id,
+    status,
+    cp,
+    provINE,
+    ciudad,
+    direccion,
+    provinciaTxt,
+    ym,
+    lnglat,
+    located,
+    // campos de análisis (panel de deals)
+    canal: firstStr(record, F.canal),
+    tipoContrato: firstStr(record, F.tipoContrato),
+    producto: firstStr(record, F.producto),
+    inicio: dateISO(record, F.fechaInicio),
+    fin: dateISO(record, F.fechaFin),
+    alquiler: cellNum(record, F.alquiler),
+  };
 }
 
 // Solo los deals activos (ABIERTO / EN TRAMITE), ya normalizados.
@@ -48,38 +66,46 @@ export function filterByMonth(deals, from, to, includeUndated) {
   return deals.filter((d) => (d.ym ? d.ym.idx >= from && d.ym.idx <= to : includeUndated));
 }
 
-// Agregados jerárquicos para el render adaptativo al zoom: CCAA, provincia, municipio y CP.
+// Agregados jerárquicos. Cada entrada guarda {count, deals[]} (+ posición en municipio/CP) para el panel.
 export function aggregate(deals) {
-  const byCCAA = new Map(); // ccaaINE → count
-  const byProvince = new Map(); // provINE → count
-  const byMunicipio = new Map(); // key → {key, name, provINE, lnglat, count}
-  const byCP = new Map(); // cp → {cp, provINE, ciudad, lnglat, count}
+  const byCCAA = new Map();
+  const byProvince = new Map();
+  const byMunicipio = new Map();
+  const byCP = new Map();
   let located = 0;
   let undated = 0;
 
+  const bump = (map, key, init) => {
+    let e = map.get(key);
+    if (!e) {
+      e = init();
+      map.set(key, e);
+    }
+    return e;
+  };
+
   for (const d of deals) {
     if (d.provINE) {
-      byProvince.set(d.provINE, (byProvince.get(d.provINE) || 0) + 1);
+      const p = bump(byProvince, d.provINE, () => ({count: 0, deals: []}));
+      p.count++;
+      p.deals.push(d);
       const cc = PROV_TO_CCAA[d.provINE];
-      if (cc) byCCAA.set(cc, (byCCAA.get(cc) || 0) + 1);
+      if (cc) {
+        const c = bump(byCCAA, cc, () => ({count: 0, deals: []}));
+        c.count++;
+        c.deals.push(d);
+      }
     }
     if (d.located && d.cp && d.lnglat) {
-      let e = byCP.get(d.cp);
-      if (!e) {
-        e = {cp: d.cp, provINE: d.provINE, ciudad: d.ciudad, lnglat: d.lnglat, count: 0};
-        byCP.set(d.cp, e);
-      }
+      const e = bump(byCP, d.cp, () => ({cp: d.cp, provINE: d.provINE, ciudad: d.ciudad, lnglat: d.lnglat, count: 0, deals: []}));
       e.count++;
+      e.deals.push(d);
       located++;
-      // Municipio: agrupa por provincia + ciudad normalizada (sin assets extra).
       const cityKey = normName(d.ciudad) || `cp${d.cp}`;
       const mkey = `${d.provINE || '??'}|${cityKey}`;
-      let m = byMunicipio.get(mkey);
-      if (!m) {
-        m = {key: mkey, name: d.ciudad || `CP ${d.cp}`, provINE: d.provINE, count: 0, sumLng: 0, sumLat: 0};
-        byMunicipio.set(mkey, m);
-      }
+      const m = bump(byMunicipio, mkey, () => ({key: mkey, name: d.ciudad || `CP ${d.cp}`, provINE: d.provINE, count: 0, deals: [], sumLng: 0, sumLat: 0}));
       m.count++;
+      m.deals.push(d);
       m.sumLng += d.lnglat[0];
       m.sumLat += d.lnglat[1];
     }
@@ -87,9 +113,9 @@ export function aggregate(deals) {
   }
   for (const m of byMunicipio.values()) m.lnglat = [m.sumLng / m.count, m.sumLat / m.count];
 
-  const maxOf = (iter, pick) => {
+  const maxOf = (iter) => {
     let mx = 0;
-    for (const v of iter) mx = Math.max(mx, pick ? pick(v) : v);
+    for (const v of iter) mx = Math.max(mx, v.count);
     return mx;
   };
   return {
@@ -99,10 +125,39 @@ export function aggregate(deals) {
     byCP,
     maxCCAA: maxOf(byCCAA.values()),
     maxProvince: maxOf(byProvince.values()),
-    maxMunicipio: maxOf(byMunicipio.values(), (m) => m.count),
-    maxCP: maxOf(byCP.values(), (e) => e.count),
+    maxMunicipio: maxOf(byMunicipio.values()),
+    maxCP: maxOf(byCP.values()),
     located,
     undated,
     total: deals.length,
+  };
+}
+
+// Estadísticas de una lista de deals (para el panel y los KPIs): ticket medio, total renta, breakdowns.
+export function statsOf(deals) {
+  let sum = 0;
+  let n = 0;
+  const byCanal = new Map();
+  const byProducto = new Map();
+  const byTipo = new Map();
+  const inc = (map, k) => map.set(k || '—', (map.get(k || '—') || 0) + 1);
+  for (const d of deals) {
+    if (typeof d.alquiler === 'number') {
+      sum += d.alquiler;
+      n++;
+    }
+    inc(byCanal, d.canal);
+    inc(byProducto, d.producto);
+    inc(byTipo, d.tipoContrato);
+  }
+  const sortDesc = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+  return {
+    count: deals.length,
+    avgAlquiler: n ? sum / n : null,
+    totalAlquiler: sum,
+    nConAlquiler: n,
+    byCanal: sortDesc(byCanal),
+    byProducto: sortDesc(byProducto),
+    byTipo: sortDesc(byTipo),
   };
 }

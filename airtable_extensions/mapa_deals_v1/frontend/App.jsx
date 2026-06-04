@@ -1,14 +1,16 @@
 // App raíz de la extension "Mapa de deals activos" (marca Advancing, ver design.md).
-// Lee los deals en vivo, filtra activos (ABIERTO/EN TRAMITE), permite filtrar por mes de cierre
-// y pinta un mapa SVG offline de España: coropleta por provincia + puntos por código postal.
+// Lee deals en vivo, filtra activos, filtro por mes de cierre, mapa SVG offline con detalle por zoom,
+// y panel de análisis lateral (deals + ticket medio de renta) al seleccionar una burbuja/región.
 import React, {useMemo, useState, useCallback} from 'react';
 import {useBase, useRecords} from '@airtable/blocks/interface/ui';
-import {DEAL_TABLE_ID, DEAL_FIELDS} from './lib/airtable';
-import {activeDeals, monthRange, filterByMonth, aggregate} from './lib/deals';
+import {DEAL_TABLE_ID, DEAL_FIELDS, euro} from './lib/airtable';
+import {activeDeals, monthRange, filterByMonth, aggregate, statsOf} from './lib/deals';
+import {PROVINCE_NAME} from './lib/geo';
 import MapaEspana from './components/MapaEspana';
 import Leyenda from './components/Leyenda';
 import FiltroMeses from './components/FiltroMeses';
 import PanelRanking from './components/PanelRanking';
+import PanelDeals from './components/PanelDeals';
 import Tooltip from './components/Tooltip';
 
 function pickFields(table, names) {
@@ -25,10 +27,10 @@ export default function App() {
   return <MapaDeals table={table} />;
 }
 
-function Kpi({value, label}) {
+function Kpi({value, label, accent}) {
   return (
     <div className="px-3">
-      <div className="text-base font-bold text-navy tabular-nums leading-none">{value}</div>
+      <div className={`text-base font-bold tabular-nums leading-none ${accent ? 'text-brand-700' : 'text-navy'}`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-slate-400 mt-0.5">{label}</div>
     </div>
   );
@@ -42,9 +44,9 @@ function MapaDeals({table}) {
   const range = useMemo(() => monthRange(active), [active]);
   const undatedCount = useMemo(() => active.reduce((n, d) => n + (d.ym ? 0 : 1), 0), [active]);
 
-  const [sel, setSel] = useState(null); // {from,to} | null = todo el periodo
+  const [sel, setSel] = useState(null); // filtro de meses {from,to} | null = todo
   const [includeUndated, setIncludeUndated] = useState(true);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selection, setSelection] = useState(null); // {kind, key, title} seleccionado en el mapa/ranking
   const [tip, setTip] = useState(null);
 
   const from = sel ? sel.from : range ? range.min : null;
@@ -53,12 +55,26 @@ function MapaDeals({table}) {
 
   const filtered = useMemo(() => filterByMonth(active, from, to, includeUndated), [active, from, to, includeUndated]);
   const agg = useMemo(() => aggregate(filtered), [filtered]);
+  const globalStats = useMemo(() => statsOf(filtered), [filtered]);
 
-  const onHover = useCallback((data) => setTip(data), []);
-  const onClickProvince = useCallback((ine) => setSelectedId((s) => (s === ine ? null : ine)), []);
+  // Deals de la selección, derivados del agregado actual (se re-calculan al cambiar el filtro).
+  const selectionDeals = useMemo(() => {
+    if (!selection) return null;
+    const map = {ccaa: agg.byCCAA, provincia: agg.byProvince, municipio: agg.byMunicipio, cp: agg.byCP}[selection.kind];
+    const entry = map && map.get(selection.key);
+    return entry ? entry.deals : null;
+  }, [selection, agg]);
+
+  const onHover = useCallback((d) => setTip(d), []);
+  const onSelect = useCallback((s) => setSelection(s), []);
+  const clearSelection = useCallback(() => setSelection(null), []);
+  const selectProvincia = useCallback((ine) => setSelection({kind: 'provincia', key: ine, title: PROVINCE_NAME.get(ine) || ine}), []);
   const onChange = useCallback((f, t) => setSel({from: f, to: t}), []);
   const onReset = useCallback(() => setSel(null), []);
   const onToggleUndated = useCallback(() => setIncludeUndated((v) => !v), []);
+
+  const selectedKey = selection ? selection.key : null;
+  const showPanel = selection && selectionDeals && selectionDeals.length > 0;
 
   return (
     <div className="font-sans text-ink bg-canvas h-screen flex flex-col">
@@ -72,7 +88,8 @@ function MapaDeals({table}) {
           <Kpi value={active.length} label="Activos" />
           <Kpi value={filtered.length} label="En filtro" />
           <Kpi value={agg.located} label="En mapa" />
-          <Kpi value={agg.byProvince.size} label="Provincias" />
+          <Kpi value={euro(globalStats.avgAlquiler)} label="Ticket medio" accent />
+          <Kpi value={euro(globalStats.totalAlquiler)} label="Renta total/mes" />
         </div>
       </header>
 
@@ -93,15 +110,8 @@ function MapaDeals({table}) {
             <Leyenda maxProvince={agg.maxProvince} maxCP={agg.maxCP} />
           </div>
           <div className="border-t border-line pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[11px] font-semibold text-navy">Provincias</div>
-              {selectedId && (
-                <button type="button" onClick={() => setSelectedId(null)} className="text-[10px] text-brand hover:text-brand-700">
-                  Quitar selección
-                </button>
-              )}
-            </div>
-            <PanelRanking byProvince={agg.byProvince} total={filtered.length} selectedId={selectedId} onSelect={onClickProvince} />
+            <div className="text-[11px] font-semibold text-navy mb-2">Provincias</div>
+            <PanelRanking byProvince={agg.byProvince} total={filtered.length} selectedId={selection && selection.kind === 'provincia' ? selection.key : null} onSelect={selectProvincia} />
           </div>
         </aside>
 
@@ -110,10 +120,12 @@ function MapaDeals({table}) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">No hay deals activos para mostrar.</div>
           ) : (
             <div className="h-full bg-paper rounded-xl shadow-card border border-line p-3">
-              <MapaEspana agg={agg} selectedId={selectedId} onHover={onHover} onClickProvince={onClickProvince} />
+              <MapaEspana agg={agg} selectedKey={selectedKey} onHover={onHover} onSelect={onSelect} />
             </div>
           )}
         </main>
+
+        {showPanel && <PanelDeals selection={{title: selection.title, deals: selectionDeals}} onClose={clearSelection} />}
       </div>
 
       <Tooltip data={tip} />
