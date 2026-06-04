@@ -5,7 +5,7 @@ import React from 'react';
 
 // Los lookups multi-valor: el SDK REAL los devuelve como [{linkedRecordId, value}] en getCellValue
 // (no como strings). Replicarlo aquí para que el preview detecte cualquier uso incorrecto.
-const LOOKUP_FIELDS = new Set(['CP inmueble', 'ciudad inmueble', 'provincia inmueble', 'direccion inmueble', 'mesCierre']);
+const LOOKUP_FIELDS = new Set(['CP inmueble', 'ciudad inmueble', 'provincia inmueble', 'direccion inmueble', 'mesCierre', 'nombre agencia']);
 function makeRecord(id, data) {
   return {
     id,
@@ -29,10 +29,12 @@ function makeRecord(id, data) {
 const CANALES = ['B2C', 'B2B2C'];
 const TIPOS = ['NUEVO', 'RENOVACION', 'EXTENSION'];
 const PRODUCTOS = ['mes a mes', '12 meses', 'temporal'];
+const AGENCIAS = ['Fincas García', 'Inmobiliaria Sol', 'Gestión Levante', 'Hogar Norte', ''];
 const D = (id, status, cp, ciudad, prov, dir, mes, fecha) => {
   const h = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const ini = fecha ? `${fecha.slice(0, 8)}01` : '2026-01-01';
   const fin = fecha ? `${+fecha.slice(0, 4) + 1}${fecha.slice(4, 8)}01` : '2027-01-01';
+  const ag = AGENCIAS[h % AGENCIAS.length];
   return makeRecord(id, {
     'deal status': status,
     'CP inmueble': cp ? [cp] : [],
@@ -47,6 +49,7 @@ const D = (id, status, cp, ciudad, prov, dir, mes, fecha) => {
     'fecha inicio': ini,
     'fecha fin': fin,
     'alquiler mensual': 800 + (h % 20) * 75,
+    'nombre agencia': ag ? [ag] : [],
   });
 };
 

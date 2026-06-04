@@ -34,7 +34,34 @@ export function toDeal(record) {
     inicio: dateISO(record, F.fechaInicio),
     fin: dateISO(record, F.fechaFin),
     alquiler: cellNum(record, F.alquiler),
+    agencia: firstStr(record, F.agencia),
   };
+}
+
+// Rango temporal de cierre sobre TODOS los records (no solo activos), limitado a 48 meses
+// hacia atrás, para que el filtro de meses ofrezca histórico aunque la cartera activa sea reciente.
+export function allMonthRange(records) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const r of records) {
+    const ym = closeYM(r);
+    if (!ym) continue;
+    if (ym.idx < min) min = ym.idx;
+    if (ym.idx > max) max = ym.idx;
+  }
+  if (min === Infinity) return null;
+  return {min: Math.max(min, max - 47), max};
+}
+
+// Filtra por facetas (canal / producto / tipo de contrato). Cada faceta es un valor o null.
+export function filterByFacets(deals, facets) {
+  if (!facets || (!facets.canal && !facets.producto && !facets.tipo)) return deals;
+  return deals.filter(
+    (d) =>
+      (!facets.canal || d.canal === facets.canal) &&
+      (!facets.producto || d.producto === facets.producto) &&
+      (!facets.tipo || d.tipoContrato === facets.tipo),
+  );
 }
 
 // Solo los deals activos (ABIERTO / EN TRAMITE), ya normalizados.
@@ -72,6 +99,7 @@ export function aggregate(deals) {
   const byProvince = new Map();
   const byMunicipio = new Map();
   const byCP = new Map();
+  const byAgencia = new Map();
   let located = 0;
   let undated = 0;
 
@@ -85,6 +113,11 @@ export function aggregate(deals) {
   };
 
   for (const d of deals) {
+    if (d.agencia) {
+      const a = bump(byAgencia, d.agencia, () => ({count: 0, deals: []}));
+      a.count++;
+      a.deals.push(d);
+    }
     if (d.provINE) {
       const p = bump(byProvince, d.provINE, () => ({count: 0, deals: []}));
       p.count++;
@@ -123,6 +156,7 @@ export function aggregate(deals) {
     byProvince,
     byMunicipio,
     byCP,
+    byAgencia,
     maxCCAA: maxOf(byCCAA.values()),
     maxProvince: maxOf(byProvince.values()),
     maxMunicipio: maxOf(byMunicipio.values()),

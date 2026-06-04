@@ -1,8 +1,10 @@
-// Panel lateral derecho: al seleccionar una burbuja/región muestra el listado de deals con stats
-// de análisis encima (recuento, ticket medio de renta, total renta) + breakdown por canal/producto/tipo.
+// Panel lateral derecho: al seleccionar una burbuja/región/agencia muestra el listado de deals con
+// stats de análisis (recuento, renta media, renta total) + facetas (canal/producto/tipo) clicables
+// que filtran la cartera, y la lista de tarjetas ordenable.
 import React, {useMemo, useState} from 'react';
 import {statsOf} from '../lib/deals';
 import {euro, fmtDate} from '../lib/airtable';
+import Facetas from './Facetas';
 
 const SORTS = {
   alquilerDesc: {label: 'Mayor renta', fn: (a, b) => (b.alquiler || 0) - (a.alquiler || 0)},
@@ -15,22 +17,6 @@ function Stat({value, label, accent}) {
     <div>
       <div className={`text-lg font-bold tabular-nums leading-none ${accent ? 'text-brand-700' : 'text-navy'}`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-slate-400 mt-0.5">{label}</div>
-    </div>
-  );
-}
-
-function Breakdown({title, entries}) {
-  if (!entries || entries.length === 0) return null;
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">{title}</div>
-      <div className="flex flex-wrap gap-1">
-        {entries.map(([k, n]) => (
-          <span key={k} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-canvas border border-line text-[11px] text-slate-600">
-            {k} <b className="text-ink tabular-nums">{n}</b>
-          </span>
-        ))}
-      </div>
     </div>
   );
 }
@@ -49,14 +35,15 @@ function DealCard({d}) {
         {d.producto && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 font-medium">{d.producto}</span>}
         {d.tipoContrato && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-mint-100 text-mint-700 font-medium">{d.tipoContrato}</span>}
       </div>
-      <div className="mt-1.5 text-[11px] text-slate-500 tabular-nums">
+      {d.agencia && <div className="mt-1 text-[11px] text-slate-500 truncate" title={d.agencia}>{d.agencia}</div>}
+      <div className="mt-1 text-[11px] text-slate-500 tabular-nums">
         {fmtDate(d.inicio)} <span className="text-slate-300">→</span> {fmtDate(d.fin)}
       </div>
     </div>
   );
 }
 
-export default function PanelDeals({selection, onClose}) {
+export default function PanelDeals({selection, facets, onToggleFacet, onClose}) {
   const [sort, setSort] = useState('alquilerDesc');
   const stats = useMemo(() => statsOf(selection.deals), [selection]);
   const deals = useMemo(() => [...selection.deals].sort(SORTS[sort].fn), [selection, sort]);
@@ -74,14 +61,14 @@ export default function PanelDeals({selection, onClose}) {
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Stat value={stats.count} label="Deals" />
-          <Stat value={euro(stats.avgAlquiler)} label="Ticket medio" accent />
+          <Stat value={euro(stats.avgAlquiler)} label="Renta media" accent />
           <Stat value={euro(stats.totalAlquiler)} label="Renta total" />
         </div>
 
-        <div className="mt-3 space-y-2">
-          <Breakdown title="Canal" entries={stats.byCanal} />
-          <Breakdown title="Producto" entries={stats.byProducto} />
-          <Breakdown title="Tipo de contrato" entries={stats.byTipo} />
+        <div className="mt-3 space-y-2.5">
+          <Facetas title="Canal" entries={stats.byCanal} active={facets.canal} onToggle={(v) => onToggleFacet('canal', v)} />
+          <Facetas title="Producto" entries={stats.byProducto} active={facets.producto} onToggle={(v) => onToggleFacet('producto', v)} />
+          <Facetas title="Tipo de contrato" entries={stats.byTipo} active={facets.tipo} onToggle={(v) => onToggleFacet('tipo', v)} />
         </div>
       </header>
 

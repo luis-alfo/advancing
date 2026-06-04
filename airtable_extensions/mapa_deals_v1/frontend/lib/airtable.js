@@ -21,7 +21,8 @@ export const F = {
   producto: 'producto', // singleSelect → mes a mes / 12 meses / ...
   fechaInicio: 'fecha inicio', // date
   fechaFin: 'fecha fin', // formula → ISO o #ERROR
-  alquiler: 'alquiler mensual', // currency → número (ticket de renta)
+  alquiler: 'alquiler mensual', // currency → número (renta mensual)
+  agencia: 'nombre agencia', // lookup → nombre de la agencia
 };
 export const DEAL_FIELDS = Object.values(F);
 
