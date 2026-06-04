@@ -53,14 +53,15 @@ export function allMonthRange(records) {
   return {min: Math.max(min, max - 47), max};
 }
 
-// Filtra por facetas (canal / producto / tipo de contrato). Cada faceta es un valor o null.
+// Filtra por facetas (canal / producto / tipo de contrato / agencia). Cada faceta es un valor o null.
 export function filterByFacets(deals, facets) {
-  if (!facets || (!facets.canal && !facets.producto && !facets.tipo)) return deals;
+  if (!facets || (!facets.canal && !facets.producto && !facets.tipo && !facets.agencia)) return deals;
   return deals.filter(
     (d) =>
       (!facets.canal || d.canal === facets.canal) &&
       (!facets.producto || d.producto === facets.producto) &&
-      (!facets.tipo || d.tipoContrato === facets.tipo),
+      (!facets.tipo || d.tipoContrato === facets.tipo) &&
+      (!facets.agencia || d.agencia === facets.agencia),
   );
 }
 
@@ -174,7 +175,11 @@ export function statsOf(deals) {
   const byCanal = new Map();
   const byProducto = new Map();
   const byTipo = new Map();
+  const byAgencia = new Map();
   const inc = (map, k) => map.set(k || '—', (map.get(k || '—') || 0) + 1);
+  const incIf = (map, k) => {
+    if (k) map.set(k, (map.get(k) || 0) + 1);
+  };
   for (const d of deals) {
     if (typeof d.alquiler === 'number') {
       sum += d.alquiler;
@@ -183,6 +188,7 @@ export function statsOf(deals) {
     inc(byCanal, d.canal);
     inc(byProducto, d.producto);
     inc(byTipo, d.tipoContrato);
+    incIf(byAgencia, d.agencia);
   }
   const sortDesc = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
   return {
@@ -193,5 +199,6 @@ export function statsOf(deals) {
     byCanal: sortDesc(byCanal),
     byProducto: sortDesc(byProducto),
     byTipo: sortDesc(byTipo),
+    byAgencia: sortDesc(byAgencia),
   };
 }
