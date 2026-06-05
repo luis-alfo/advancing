@@ -1,11 +1,12 @@
 // Transformación deals → datos del mapa: normalización, filtro temporal, agregados y estadísticas.
-import {F, firstStr, dateISO, cellNum, normCP, normName, closeYM, ACTIVE_STATUSES} from './airtable';
+import {F, firstStr, cellStr, dateISO, cellNum, normCP, normName, closeYM, REALIZADO_STATUSES, TERMINADO_STATUS} from './airtable';
 import {PROV_TO_CCAA} from './regions';
 import {cpLngLat, provinceLngLat, hasProvince} from './geo';
 
 // Normaliza un record de deal a un objeto plano para el mapa + análisis.
 export function toDeal(record) {
   const status = firstStr(record, F.status);
+  const statusAplicable = cellStr(record, F.statusAplicable);
   const cp = normCP(firstStr(record, F.cp));
   const provINE = cp ? cp.slice(0, 2) : null;
   const ciudad = firstStr(record, F.ciudad);
@@ -19,6 +20,7 @@ export function toDeal(record) {
   return {
     id: record.id,
     status,
+    statusAplicable,
     cp,
     provINE,
     ciudad,
@@ -65,12 +67,13 @@ export function filterByFacets(deals, facets) {
   );
 }
 
-// Solo los deals activos (ABIERTO / EN TRAMITE), ya normalizados.
+// Cartera activa: statusAplicable en estado 'realizado' (eslabón vivo) y contrato no vencido (deal status ≠ TERMINADO).
+// No usa el antiguo filtro temporal puro (deal status), que colaba cancelados/finalizados/caídas/pipeline/standby.
 export function activeDeals(records) {
   const out = [];
   for (const r of records) {
-    const status = firstStr(r, F.status);
-    if (!ACTIVE_STATUSES.has(status)) continue;
+    if (!REALIZADO_STATUSES.has(cellStr(r, F.statusAplicable))) continue;
+    if (firstStr(r, F.status) === TERMINADO_STATUS) continue;
     out.push(toDeal(r));
   }
   return out;

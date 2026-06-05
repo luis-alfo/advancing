@@ -12,7 +12,7 @@
 |---|---|
 | Base (Gestor de Operaciones) | `appuV5kGKzKdXlhoR` (token `advancing-gestor`) |
 | Tabla | `deal` `tblwx73iceuKNaz68` (**500 campos** — suscribir solo `DEAL_FIELDS`) |
-| "Deal activo" | fórmula `deal status ∈ {ABIERTO, EN TRAMITE}` (~1.376 hoy) |
+| "Deal activo" | `statusAplicable ∈ realizado` (10 / 5-renov / 12-ext / 4-flex) **y** `deal status ≠ TERMINADO` (contrato no vencido) — ~1.130 hoy |
 | Acceso solo lectura | la extensión **solo lee** deals; no escribe nada |
 | **Block publicado** | `blkwYK9ieC0QgUOsW` (baseId `NONE`, interface extension). Remote en `.block/remote.json` (gitignored) |
 
@@ -23,13 +23,13 @@ block set-api-key <PAT con scope block:manage> --location app   # advancing-gest
 block release    # pide un comentario por stdin: echo "..." | block release
 ```
 
-Campos usados (todos lookup del inmueble salvo `deal status`/`fechaCierre`), en [`frontend/lib/airtable.js`](frontend/lib/airtable.js):
-`deal status`, `CP inmueble`, `ciudad inmueble`, `provincia inmueble`, `direccion inmueble`, `mesCierre`, `fechaCierre`.
+Campos usados (todos lookup del inmueble salvo `deal status`/`statusAplicable`/`fechaCierre`), en [`frontend/lib/airtable.js`](frontend/lib/airtable.js):
+`deal status`, `statusAplicable`, `CP inmueble`, `ciudad inmueble`, `provincia inmueble`, `direccion inmueble`, `mesCierre`, `fechaCierre`.
 
 ## Decisiones de producto (cerradas con el usuario)
 - **Lienzo:** SVG vectorial offline (`d3-geo` + `topojson-client` + `d3-composite-projections`). Sin Mapbox/tiles.
 - **Posición de cada deal:** centroide de su **CP** (tabla `CP→lat/lng` empaquetada). Fallback: centroide de provincia.
-- **Activo:** `ABIERTO` + `EN TRAMITE`. **Mes de cierre:** filtro temporal (rango de meses).
+- **Activo (cartera):** `statusAplicable ∈ realizado` **y** `deal status ≠ TERMINADO`. El `deal status` temporal a secas (ABIERTO/EN TRAMITE) colaba cancelados, finalizados, caídas, pipeline y standby. **Mes de cierre:** filtro temporal (rango de meses).
 - Join coropleta por **código INE de provincia = 2 primeros dígitos del CP** (no por el texto sucio de `provincia inmueble`).
 
 ## Stack

@@ -30,13 +30,17 @@ const CANALES = ['B2C', 'B2B2C'];
 const TIPOS = ['NUEVO', 'RENOVACION', 'EXTENSION'];
 const PRODUCTOS = ['mes a mes', '12 meses', 'temporal'];
 const AGENCIAS = ['Fincas García', 'Inmobiliaria Sol', 'Gestión Levante', 'Hogar Norte', ''];
-const D = (id, status, cp, ciudad, prov, dir, mes, fecha) => {
+// statusAplicable coherente con el tipo (el campo real es una fórmula SWITCH por tipo contrato).
+const TIPO_TO_APLICABLE = {NUEVO: '10. ADVANCING REALIZADO', RENOVACION: '5. Renovación realizada', EXTENSION: '12. Extensión realizada'};
+const D = (id, status, cp, ciudad, prov, dir, mes, fecha, statusAplicable) => {
   const h = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   const ini = fecha ? `${fecha.slice(0, 8)}01` : '2026-01-01';
   const fin = fecha ? `${+fecha.slice(0, 4) + 1}${fecha.slice(4, 8)}01` : '2027-01-01';
   const ag = AGENCIAS[h % AGENCIAS.length];
+  const tipo = TIPOS[h % TIPOS.length];
   return makeRecord(id, {
     'deal status': status,
+    statusAplicable: statusAplicable || TIPO_TO_APLICABLE[tipo],
     'CP inmueble': cp ? [cp] : [],
     'ciudad inmueble': ciudad ? [ciudad] : [],
     'provincia inmueble': prov ? [prov] : [],
@@ -44,7 +48,7 @@ const D = (id, status, cp, ciudad, prov, dir, mes, fecha) => {
     mesCierre: mes ? [mes] : [],
     fechaCierre: fecha || '',
     'canal de entrada': CANALES[h % CANALES.length],
-    'tipo contrato': TIPOS[h % TIPOS.length],
+    'tipo contrato': tipo,
     producto: PRODUCTOS[h % PRODUCTOS.length],
     'fecha inicio': ini,
     'fecha fin': fin,
@@ -78,9 +82,10 @@ const DEALS = [
   D('d17', 'ABIERTO', '35001', 'Las Palmas de Gran Canaria', 'Las Palmas', 'Calle Mayor de Triana 70', 'Mayo 26', '2026-05-06'),
   D('d18', 'ABIERTO', '50001', 'Zaragoza', 'Zaragoza', 'Calle del Coso 33', 'Octubre 25', '2025-10-21'),
   // Casos borde:
-  D('d19', 'TERMINADO', '46001', 'Valencia', 'Valencia', 'Calle terminada 1', 'Mayo 25', '2025-05-01'), // debe filtrarse (no activo)
+  D('d19', 'TERMINADO', '46001', 'Valencia', 'Valencia', 'Calle terminada 1', 'Mayo 25', '2025-05-01'), // filtrado: deal status TERMINADO (contrato vencido)
   D('d20', 'ABIERTO', '03002', 'Alicante', 'Alicante', 'Sin fecha de cierre 2', '', ''), // sin fecha → checkbox
   D('d21', 'ABIERTO', '00000', '', '', 'CP basura, sin ubicar', 'Marzo 26', '2026-03-15'), // CP inválido → no ubica
+  D('d22', 'ABIERTO', '46002', 'Valencia', 'Valencia', 'Cancelada con fechas vigentes', 'Abril 26', '2026-04-01', '15. ADVANCING CANCELADO'), // filtrado: statusAplicable no realizado (aunque deal status=ABIERTO)
 ];
 
 const TABLES = {

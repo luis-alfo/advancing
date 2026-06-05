@@ -8,7 +8,8 @@ export const DEAL_TABLE_ID = 'tblwx73iceuKNaz68'; // tabla `deal` (500 campos)
 
 // Campos mínimos a suscribir (regla: declarar lista por los 500 campos de deal).
 export const F = {
-  status: 'deal status', // formula → ABIERTO / EN TRAMITE / TERMINADO / #ERROR
+  status: 'deal status', // formula temporal → ABIERTO / EN TRAMITE / TERMINADO (solo ventana del contrato)
+  statusAplicable: 'statusAplicable', // formula → estado real del pipeline según tipo contrato (define cartera)
   cp: 'CP inmueble', // lookup (array de {value})
   ciudad: 'ciudad inmueble', // lookup
   provincia: 'provincia inmueble', // lookup (texto sucio — solo fallback/label)
@@ -26,8 +27,16 @@ export const F = {
 };
 export const DEAL_FIELDS = Object.values(F);
 
-// "Deal activo" = vigente hoy o entrando (decisión de producto).
-export const ACTIVE_STATUSES = new Set(['ABIERTO', 'EN TRAMITE']);
+// Cartera activa = estado de pipeline "realizado" (el eslabón vivo, según tipo de contrato) Y contrato no vencido.
+// Criterio: statusAplicable ∈ REALIZADO_STATUSES  +  deal status ≠ 'TERMINADO' (es decir, fecha fin >= hoy).
+// Excluye cancelado, finalizado, caída, standby, renovado/renovada (eslabón ya superado) y operaciones aún en pipeline.
+export const REALIZADO_STATUSES = new Set([
+  '10. ADVANCING REALIZADO',
+  '5. Renovación realizada',
+  '12. Extensión realizada',
+  '4. Flexible realizado',
+]);
+export const TERMINADO_STATUS = 'TERMINADO';
 
 // Texto renderizado de una celda. getCellValueAsString es robusto para lookups/selects/formulas:
 // devuelve lo que se ve en la celda, sin el envoltorio {value} interno del SDK.
