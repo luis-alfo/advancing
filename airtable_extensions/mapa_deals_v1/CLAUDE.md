@@ -83,9 +83,10 @@ npx block run                # dev server https://localhost:9000 (lee la base re
 npx block release            # publica nueva versión (HITL — ver abajo)
 pkill -f "block run"         # parar dev server SIEMPRE antes de un release
 ```
-Sanity Tailwind antes de release (debe ser ≥1, usar una clase realmente presente):
+Sanity Tailwind: el CLI `@airtable/blocks-cli@3.0.2` **ya no deja `.tmp/bundle.js`** (bundlea en memoria),
+así que el viejo `grep` no aplica. Verifica que las clases se generan compilando el config (debe ser ≥1):
 ```bash
-grep -c "bg-canvas" .tmp/bundle.js
+npx tailwindcss -i frontend/style.css -c tailwind.config.js -o /tmp/tw.css && grep -c "\.bg-canvas" /tmp/tw.css
 ```
 
 ## Trampas heredadas (de `gestor_deal_v1`, aplican aquí)
@@ -104,6 +105,10 @@ grep -c "bg-canvas" .tmp/bundle.js
 ## Estado
 - ✅ **Publicada** (v0.0.1, block `blkwYK9ieC0QgUOsW`). Corre contra la base real (lee deals).
 - ✅ Coropleta + puntos + inset Canarias + filtro por mes de cierre + tooltips + ranking + KPIs. Lint limpio.
+- ✅ **Ranking de agencias (Pareto)** en la barra izquierda: agencias por nº de operaciones con **línea del 80% acumulado**
+  (denominador = total de vivas, incluidas las sin agencia → fila "Sin agencia" cuadra al 100%). Clic filtra (toggle)
+  sincronizado con el desplegable de Agencia; se calcula sobre `monthFiltered` (no colapsa al filtrar). Helper puro
+  `paretoAgencias()` en `lib/deals.js`, componente `components/RankingAgencias.jsx`.
 - ✅ **Zoom/pan** (rueda, arrastre, encuadre por región) y **detalle adaptativo al zoom**: CCAA → provincia → municipio → CP,
   con etiqueta de recuento por nivel y **celdas Voronoi** de CP (d3-delaunay) al máximo zoom.
 - ⏳ Por validar con datos reales: calidad del nivel municipio (agrupa por `ciudad inmueble`); rendimiento con ~miles de deals.
