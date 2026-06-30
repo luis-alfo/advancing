@@ -29,7 +29,19 @@ function makeRecord(id, data) {
 const CANALES = ['B2C', 'B2B2C'];
 const TIPOS = ['NUEVO', 'RENOVACION', 'EXTENSION'];
 const PRODUCTOS = ['mes a mes', '12 meses', 'temporal'];
-const AGENCIAS = ['Fincas García', 'Inmobiliaria Sol', 'Gestión Levante', 'Hogar Norte', ''];
+// Lista PONDERADA (repeticiones = peso) para una distribución Pareto realista en el preview:
+// pocas agencias concentran la mayoría, cola de agencias con 1-2 y algunas operaciones sin agencia ('').
+const AGENCIAS = [
+  'Fincas García', 'Fincas García', 'Fincas García', 'Fincas García', 'Fincas García',
+  'Inmobiliaria Sol', 'Inmobiliaria Sol', 'Inmobiliaria Sol',
+  'Gestión Levante', 'Gestión Levante',
+  'Hogar Norte', 'Hogar Norte',
+  'Costa Azul',
+  'Vivienda Plus',
+  'Atlántico Hogar',
+  'Mediterráneo Fincas',
+  '', '', '',
+];
 // statusAplicable coherente con el tipo (el campo real es una fórmula SWITCH por tipo contrato).
 const TIPO_TO_APLICABLE = {NUEVO: '10. ADVANCING REALIZADO', RENOVACION: '5. Renovación realizada', EXTENSION: '12. Extensión realizada'};
 const D = (id, status, cp, ciudad, prov, dir, mes, fecha, statusAplicable) => {
@@ -81,6 +93,19 @@ const DEALS = [
   D('d16', 'ABIERTO', '07001', 'Palma', 'Illes Balears', "Carrer de Sant Miquel 50", 'Abril 26', '2026-04-25'),
   D('d17', 'ABIERTO', '35001', 'Las Palmas de Gran Canaria', 'Las Palmas', 'Calle Mayor de Triana 70', 'Mayo 26', '2026-05-06'),
   D('d18', 'ABIERTO', '50001', 'Zaragoza', 'Zaragoza', 'Calle del Coso 33', 'Octubre 25', '2025-10-21'),
+  // Más cartera viva para que el ranking de agencias tenga cuerpo (Pareto + línea del 80%).
+  D('d23', 'ABIERTO', '46004', 'Valencia', 'Valencia', 'Carrer de Cádiz 11', 'Abril 26', '2026-04-08'),
+  D('d24', 'ABIERTO', '46021', 'Valencia', 'Valencia', 'Av de Blasco Ibáñez 140', 'Febrero 26', '2026-02-19'),
+  D('d25', 'ABIERTO', '08012', 'Barcelona', 'Barcelona', 'Carrer de Verdi 22', 'Marzo 26', '2026-03-23'),
+  D('d26', 'ABIERTO', '08036', 'Barcelona', 'Barcelona', 'Carrer de Villarroel 5', 'Mayo 26', '2026-05-11'),
+  D('d27', 'ABIERTO', '28015', 'Madrid', 'Madrid', 'Calle de Fuencarral 90', 'Abril 26', '2026-04-17'),
+  D('d28', 'ABIERTO', '28004', 'Madrid', 'Madrid', 'Calle de Hortaleza 60', 'Enero 26', '2026-01-28'),
+  D('d29', 'ABIERTO', '29010', 'Málaga', 'Málaga', 'Av de Andalucía 25', 'Mayo 26', '2026-05-09'),
+  D('d30', 'ABIERTO', '41004', 'Sevilla', 'Sevilla', 'Av de la Constitución 12', 'Marzo 26', '2026-03-06'),
+  D('d31', 'ABIERTO', '03003', 'Alicante', 'Alicante', 'Av de Óscar Esplá 18', 'Febrero 26', '2026-02-02'),
+  D('d32', 'ABIERTO', '46900', 'Torrent', 'Valencia', 'Av al Vedat 70', 'Abril 26', '2026-04-29'),
+  D('d33', 'ABIERTO', '30201', 'Cartagena', 'Murcia', 'Calle Mayor 8', 'Mayo 26', '2026-05-14'),
+  D('d34', 'ABIERTO', '08201', 'Sabadell', 'Barcelona', 'Carrer de Gràcia 33', 'Marzo 26', '2026-03-18'),
   // Casos borde:
   D('d19', 'TERMINADO', '46001', 'Valencia', 'Valencia', 'Calle terminada 1', 'Mayo 25', '2025-05-01'), // filtrado: deal status TERMINADO (contrato vencido)
   D('d20', 'ABIERTO', '03002', 'Alicante', 'Alicante', 'Sin fecha de cierre 2', '', ''), // sin fecha → checkbox

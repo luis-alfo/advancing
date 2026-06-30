@@ -205,3 +205,50 @@ export function statsOf(deals) {
     byAgencia: sortDesc(byAgencia),
   };
 }
+
+// Pareto de agencias por nº de operaciones. `entries`: [[nombre, count], ...] (p. ej. statsOf().byAgencia).
+// `totalVivas`: denominador = total de operaciones vivas (INCLUIDAS las sin agencia) → el % y el corte
+// del umbral se miden sobre ese total. Ordena desc, acumula, marca el corte del 80% y agrupa la cola.
+export function paretoAgencias(entries, totalVivas, {threshold = 0.8, tailExtra = 3} = {}) {
+  const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+  const total = totalVivas || 0;
+  const sumAgencias = sorted.reduce((s, [, c]) => s + c, 0);
+  const sinAgencia = Math.max(0, total - sumAgencias);
+
+  let cum = 0;
+  const all = sorted.map(([name, count]) => {
+    cum += count;
+    return {name, count, pct: total ? count / total : 0, cumCount: cum, cumPct: total ? cum / total : 0};
+  });
+
+  // Índice (0-based) de la última agencia necesaria para que el acumulado cruce el umbral.
+  // -1 si las agencias no llegan al umbral (demasiadas operaciones sin agencia).
+  let cutIndex = -1;
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].cumPct >= threshold) {
+      cutIndex = i;
+      break;
+    }
+  }
+  const reaches = cutIndex >= 0;
+
+  // Mostrar hasta el corte + cola corta; si no se alcanza el umbral, mostrar todas.
+  const shownCount = reaches ? Math.min(all.length, cutIndex + 1 + tailExtra) : all.length;
+  const rows = all.slice(0, shownCount);
+  const hidden = all.slice(shownCount);
+  const otherCount = hidden.reduce((s, r) => s + r.count, 0);
+
+  return {
+    rows,
+    total,
+    maxCount: all.length ? all[0].count : 0,
+    cutIndex: reaches ? cutIndex : -1, // posición dentro de `rows` tras la cual va la línea
+    reaches80: reaches,
+    threshold,
+    sinAgencia,
+    sinAgenciaPct: total ? sinAgencia / total : 0,
+    otherAgencias: hidden.length,
+    otherCount,
+    otherPct: total ? otherCount / total : 0,
+  };
+}

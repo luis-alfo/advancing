@@ -11,6 +11,7 @@ import Leyenda from './components/Leyenda';
 import FiltroMeses from './components/FiltroMeses';
 import FiltroSelect from './components/FiltroSelect';
 import PanelRanking from './components/PanelRanking';
+import RankingAgencias from './components/RankingAgencias';
 import PanelDeals from './components/PanelDeals';
 import Tooltip from './components/Tooltip';
 
@@ -129,6 +130,16 @@ function MapaDeals({table}) {
             <FiltroSelect label="Producto" value={facets.producto} entries={facetStats.byProducto} onChange={(v) => setFacet('producto', v)} />
             <FiltroSelect label="Tipo de contrato" value={facets.tipo} entries={facetStats.byTipo} onChange={(v) => setFacet('tipo', v)} />
             <FiltroSelect label="Agencia" value={facets.agencia} entries={facetStats.byAgencia} onChange={(v) => setFacet('agencia', v)} allLabel="Todas" />
+          </div>
+
+          <div className="border-t border-line pt-4">
+            <div className="text-[11px] font-semibold text-navy mb-2">Agencias</div>
+            <RankingAgencias
+              entries={facetStats.byAgencia}
+              total={monthFiltered.length}
+              selectedKey={facets.agencia}
+              onSelect={(name) => toggleFacet('agencia', name)}
+            />
           </div>
 
           <div className="border-t border-line pt-4">
